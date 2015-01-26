@@ -2,7 +2,7 @@
 *
 *   Xpresion
 *   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-*   @version: 0.5-alpha
+*   @version: 0.5
 *
 *   https://github.com/foo123/Xpresion
 *
@@ -34,20 +34,20 @@
     
     "use strict";
     
-    var __version__ = "0.5-alpha",
+    var __version__ = "0.5",
     
         PROTO = 'prototype', HAS = 'hasOwnProperty', 
         toJSON = JSON.stringify, Keys = Object.keys, Extend = Object.create,
         
         F = function( a, f ){ return new Function( a, f ); },
         RE = function( r, f ){ return new RegExp( r, f||'' ); },
-        DATE = function( d, f ){ return new Date( d ); },
+        //DATE = function( d, f ){ return new Date( d ); },
         
         NEWLINE = /\n\r|\r\n|\n|\r/g, SQUOTE = /'/g,
         
         dummy = function( /*Var, Fn, Cache*/ ){ return null; },
         
-        Tpl, Node, Alias, Tok, Op, PolyMorph, Func, Xpresion,
+        Tpl, Node, Alias, Tok, Op, Func, Xpresion,
         BLOCKS = 'BLOCKS', OPS = 'OPERATORS', FUNCS = 'FUNCTIONS',
         __inited = false
     ;
@@ -63,7 +63,8 @@
         var self = this;
         if ( !(self instanceof Xpresion) ) return new Xpresion( expr );
         self.source = expr || '';
-        self.setup( ).parse( );
+        self.setup( );
+        Xpresion.parse( self );
     };
     
     Xpresion.VERSION = __version__;
@@ -108,7 +109,7 @@
         if ( true === compiled ) self._renderer = Tpl.compile( self.tpl );
         self.fixRenderer( );
     };
-    Tpl.defaultArgs = {'$-4':-4,'$-3':-3,'$-2':-2,'$-1':-1,'$0':0,'$1':1,'$2':2,'$3':3,'$4':4};
+    Tpl.defaultArgs = {'$-5':-5,'$-4':-4,'$-3':-3,'$-2':-2,'$-1':-1,'$0':0,'$1':1,'$2':2,'$3':3,'$4':4,'$5':5};
     Tpl.multisplit = function multisplit( tpl, reps, as_array ) {
         var r, sr, s, i, j, a, b, c, al, bl;
         as_array = !!as_array;
@@ -234,6 +235,25 @@
         }
     };
     
+    Xpresion.Alias = Alias = function Alias( alias ) {
+        if ( !(this instanceof Alias) ) return new Alias(alias);
+        this.alias = alias;
+    };
+    Alias.get_entry = function( entries, id ) {
+        if ( id && entries && entries[HAS](id) )
+        {
+            // walk/bypass aliases, if any
+            var entry = entries[ id ];
+            while ( (entry instanceof Alias) && entries[HAS](entry.alias) ) 
+            {
+                id = entry.alias;
+                entry = entries[ id ];
+            }
+            return entry;
+        }
+        return false;
+    };
+
     Xpresion.Node = Node = function Node(type, node, children, pos) {
         var self = this;
         if ( !(self instanceof Node) ) return new Node(type, node, children, pos);
@@ -248,6 +268,17 @@
         ,node: null
         ,children: null
         ,pos: null
+        ,op_parts: null
+        ,op_index: null
+        ,op_next: function( op ) {
+            var self = this,
+                is_next = (0 === self.op_parts.indexOf( op.input ));
+            if ( is_next ) self.op_parts.shift( );
+            return is_next;
+        }
+        ,op_complete: function( ) {
+            return !this.op_parts.length;
+        }
         ,dispose: function( ) {
             var self = this, 
                 c = self.children, l, i;
@@ -258,6 +289,8 @@
             self.type = null;
             self.pos = null;
             self.node = null;
+            self.op_parts = null;
+            self.op_index = null;
             c = self.children = null;
             return self;
         }
@@ -289,8 +322,8 @@
             or one unknown in different states, e.g x and x^2 etc..)
         */
         andDispose = false !== andDispose;
-        action = action || Xpresion.render_action;
-        var node, op, stack = [ root ], output = [ ];
+        action = action || Xpresion.render;
+        var node, op, o, stack = [ root ], output = [ ];
         while ( stack.length )
         {
             node = stack[ 0 ];
@@ -303,16 +336,13 @@
             {
                stack.shift( );
                op = node.node;
-               output.push( action(op, op.arity ? output.splice(output.length-op.arity, op.arity) : []) );
+               o = action(op, op.arity ? output.splice(output.length-op.arity, op.arity) : [])
+               output.push( o );
                if ( andDispose ) node.dispose( );
             }
         }
         stack = null;
         return output[ 0 ];
-    };
-    
-    Xpresion.render_action = function( tok, args ) { 
-        return tok.render( args ); 
     };
     
     Xpresion.reduce = function( token_queue, op_queue, nop_queue, current_op, pos ) {
@@ -360,20 +390,21 @@
                 
                 // n-ary/multi-part operator, further parts
                 // combine one-by-one, until n-ary operator is complete
-                if ( nop && nop.next( opc ) )
+                if ( nop && nop.op_next( opc ) )
                 {
                     while ( op_queue.length > nop_index )
                     {
                         entry = op_queue.shift( ); op = entry.node;
-                        n = op.node(token_queue.splice(0, op.arity).reverse(), entry.pos);
-                        token_queue.unshift( n );
+                        n = op.node(token_queue.splice(token_queue.length-op.arity, op.arity), entry.pos);
+                        token_queue.push( n );
                     }
                     
-                    if ( nop.complete( ) ) 
+                    if ( nop.op_complete( ) ) 
                     {
                         nop_queue.shift( );
                         op_queue.shift( );
                         opc = nop.node;
+                        nop.dispose( );
                         nop_index = nop_queue.length ? nop_queue[0].op_index : 0;
                     }
                     else
@@ -387,14 +418,14 @@
                 {
                     // postfix assumed to be already in correct order, 
                     // no re-structuring needed
-                    n = opc.node(token_queue.splice(0, opc.arity).reverse(), pos);
-                    token_queue.unshift( n );
+                    n = opc.node(token_queue.splice(token_queue.length-opc.arity, opc.arity), pos);
+                    token_queue.push( n );
                 }
                 else if ( PREFIX === fixity )
                 {
                     // prefix assumed to be already in reverse correct order, 
                     // just push to op queue for later re-ordering
-                    op_queue.unshift( Node(opc.o_type, opc, null, pos) );
+                    op_queue.unshift( Node(opc.otype, opc, null, pos) );
                 }
                 else/* if ( INFIX === fixity )*/
                 {
@@ -409,8 +440,8 @@
                             op.associativity < 0))))
                         )
                         {
-                            n = op.node(token_queue.splice(0, op.arity).reverse(), entry.pos);
-                            token_queue.unshift( n );
+                            n = op.node(token_queue.splice(token_queue.length-op.arity, op.arity), entry.pos);
+                            token_queue.push( n );
                         }
                         else
                         {
@@ -418,7 +449,7 @@
                             break;
                         }
                     }
-                    op_queue.unshift( Node(opc.o_type, opc, null, pos) );
+                    op_queue.unshift( Node(opc.otype, opc, null, pos) );
                 }
             }
         }
@@ -427,15 +458,15 @@
             while ( op_queue.length )
             {
                 entry = op_queue.shift( ); op = entry.node;
-                n = op.node(token_queue.splice(0, op.arity).reverse(), entry.pos);
-                token_queue.unshift( n );
+                n = op.node(token_queue.splice(token_queue.length-op.arity, op.arity), entry.pos);
+                token_queue.push( n );
             }
         }
     };
     
     Xpresion.parse_delimited_block = function(s, i, l, delim, is_escaped) {
         var p = delim, esc = false, ch = '';
-        is_escaped = !!is_escaped;
+        is_escaped = false !== is_escaped;
         i += 1;
         while ( i < l )
         {
@@ -446,23 +477,290 @@
         return p;
     };
     
-    Xpresion.Alias = Alias = function Alias( alias ) {
-        if ( !(this instanceof Alias) ) return new Alias(alias);
-        this.alias = alias;
-    };
-    Alias.get_entry = function( entries, id ) {
-        if ( id && entries && entries[HAS](id) )
+    Xpresion.parse = function( xpr ) {
+        var self = xpr, expr, l
+            
+            ,e, ch, v
+            ,i, m, t, AST, OPS, NOPS, t_index
+            
+            ,reduce = Xpresion.reduce
+            ,get_entry = Alias.get_entry
+            
+            ,RE = self.RE, BLOCK = self[BLOCKS], block, block_rest
+            ,t_var_is_also_ident = !RE[HAS]('t_var')
+            ,evaluator
+            ,err = 0, errpos, errmsg
+        ;
+        
+        expr = self.source;
+        l = expr.length;
+        self._cnt = 0;
+        self._symbol_table = { };
+        self._cache = { };
+        self.variables = { };
+        AST = [ ]; OPS = [ ]; NOPS = [ ]; 
+        t_index = 0; i = 0;
+        
+        while ( i < l )
         {
-            // walk/bypass aliases, if any
-            var entry = entries[ id ];
-            while ( (entry instanceof Alias) && entries[HAS](entry.alias) ) 
+            ch = expr.charAt( i );
+            
+            // use customized (escaped) delimited blocks here
+            // TODO: add a "date" block as well with #..#
+            if ( block = get_entry(BLOCK, ch) ) // string or regex or date ('"`#)
             {
-                id = entry.alias;
-                entry = entries[ id ];
+                v = block.parse(expr, i, l, ch);
+                if ( false !== v )
+                {
+                    i += v.length;
+                    if ( block[HAS]('rest') )
+                    {
+                        block_rest = block.rest(expr, i, l) || '';
+                    }
+                    else
+                    {
+                        block_rest = '';
+                    }
+                    i += block_rest.length;
+                    
+                    t = self.t_block( v, block.type, block_rest );
+                    if ( false !== t )
+                    {
+                        t_index+=1;
+                        AST.push( t.node(null, t_index) );
+                        continue;
+                    }
+                }
             }
-            return entry;
+            
+            e = expr.slice( i );
+            
+            if ( m = e.match( RE.t_spc ) ) // space
+            {
+                i += m[ 0 ].length;
+                continue;
+            }
+
+            if ( m = e.match( RE.t_num ) ) // number
+            {
+                t = self.t_liter( m[ 1 ], T_NUM );
+                if ( false !== t )
+                {
+                    t_index+=1;
+                    AST.push( t.node(null, t_index) );
+                    i += m[ 0 ].length;
+                    continue;
+                }
+            }
+            
+            if ( m = e.match( RE.t_ident ) ) // ident, reserved, function, operator, etc..
+            {
+                t = self.t_liter( m[ 1 ], T_IDE ); // reserved keyword
+                if ( false !== t )
+                {
+                    t_index+=1;
+                    AST.push( t.node(null, t_index) );
+                    i += m[ 0 ].length;
+                    continue;
+                }
+                t = self.t_op( m[ 1 ] ); // (literal) operator
+                if ( false !== t )
+                {
+                    t_index+=1;
+                    reduce( AST, OPS, NOPS, t, t_index );
+                    i += m[ 0 ].length;
+                    continue;
+                }
+                if ( t_var_is_also_ident )
+                {
+                    t = self.t_var( m[ 1 ] ); // variables are also same identifiers
+                    if ( false !== t )
+                    {
+                        t_index+=1;
+                        AST.push( t.node(null, t_index) );
+                        i += m[ 0 ].length;
+                        continue;
+                    }
+                }
+            }
+            
+            if ( m = e.match( RE.t_special ) ) // special symbols..
+            {
+                v = m[ 1 ]; t = false;
+                while ( v.length > 0 ) // try to match maximum length op/func
+                {
+                    t = self.t_op( v ); // function, (non-literal) operator
+                    if ( false !== t ) break;
+                    v = v.slice( 0, -1 );
+                }
+                if ( false !== t )
+                {
+                    t_index+=1;
+                    reduce( AST, OPS, NOPS, t, t_index );
+                    i += v.length;
+                    continue;
+                }
+            }
+            
+            if ( !t_var_is_also_ident && (m = e.match( RE.t_var )) ) // variables
+            {
+                t = self.t_var( m[ 1 ] );
+                if ( false !== t )
+                {
+                    t_index+=1;
+                    AST.push( t.node(null, t_index) );
+                    i += m[ 0 ].length;
+                    continue;
+                }
+            }
+            
+            if ( m = e.match( RE.t_nonspc ) ) // other non-space tokens/symbols..
+            {
+                t = self.t_liter( m[ 1 ], T_LIT ); // reserved keyword
+                if ( false !== t )
+                {
+                    t_index+=1;
+                    AST.push( t.node(null, t_index) );
+                    i += m[ 0 ].length;
+                    continue;
+                }
+                t = self.t_op( m[ 1 ] ); // function, other (non-literal) operator
+                if ( false !== t )
+                {
+                    t_index+=1;
+                    reduce( AST, OPS, NOPS, t, t_index );
+                    i += m[ 0 ].length;
+                    continue;
+                }
+                t = self.t_tok( m[ 1 ] );
+                t_index+=1;
+                AST.push( t.node(null, t_index) ); // pass-through ..
+                i += m[ 0 ].length;
+                //continue;
+            }
         }
-        return false;
+        
+        err = 0;
+        reduce( AST, OPS, NOPS );
+        
+        if ( (1 !== AST.length) || (OPS.length > 0) )
+        {
+            err = 1;
+            errmsg = 'Parse Error, Mismatched Parentheses or Operators';
+        }
+        
+        if ( !err )
+        {
+            
+            try {
+                
+                evaluator = self.compile( AST[0] );
+            
+            } catch( e ) {
+                
+                err = 1;
+                errmsg = 'Compilation Error, ' + e.message + '';
+            }
+        }
+        
+        NOPS = null; OPS = null; AST = null;
+        self._symbol_table = null;
+        
+        if ( err )
+        {
+            evaluator = null;
+            self.variables = [ ];
+            self._cnt = 0;
+            self._cache = { };
+            self._evaluator_str = '';
+            self._evaluator = self.dummy_evaluator;
+            console.error( 'Xpresion Error: ' + errmsg + ' at ' + expr );
+        }
+        else
+        {
+            // make array
+            self.variables = Keys( self.variables );
+            self._evaluator_str = evaluator[0];
+            self._evaluator = evaluator[1];
+        }
+        
+        return self; 
+    };
+        
+    Xpresion.render = function( tok, args ) { 
+        return tok.render( args ); 
+    };
+    
+    Xpresion.defRE = function( obj, RE ) {
+        if ( 'object' === typeof obj )
+        {
+            RE = RE || Xpresion.RE;
+            for (var k in obj)
+            {
+                if ( obj[HAS](k) ) RE[ k ] = obj[ k ];
+            }
+        }
+        return RE;
+    };
+    
+    Xpresion.defBlock = function( obj, BLOCK ) {
+        if ( 'object' === typeof obj )
+        {
+            BLOCK = BLOCK || Xpresion[BLOCKS];
+            for (var k in obj)
+            {
+                if ( obj[HAS](k) ) BLOCK[ k ] = obj[ k ];
+            }
+        }
+        return BLOCK;
+    };
+    
+    Xpresion.defReserved = function( obj, Reserved ) {
+        if ( 'object' === typeof obj )
+        {
+            Reserved = Reserved || Xpresion.Reserved;
+            for (var k in obj)
+            {
+                if ( obj[HAS](k) ) Reserved[ k ] = obj[ k ];
+            }
+        }
+        return Reserved;
+    };
+    
+    Xpresion.defOp = function( obj, OPERATORS ) {
+        if ( 'object' === typeof obj )
+        {
+            OPERATORS = OPERATORS || Xpresion[OPS];
+            for (var k in obj)
+            {
+                if ( obj[HAS](k) ) OPERATORS[ k ] = obj[ k ];
+            }
+        }
+        return OPERATORS;
+    };
+    
+    Xpresion.defFunc = function( obj, FUNCTIONS ) {
+        if ( 'object' === typeof obj )
+        {
+            FUNCTIONS = FUNCTIONS || Xpresion[FUNCS];
+            for (var k in obj)
+            {
+                if ( obj[HAS](k) ) FUNCTIONS[ k ] = obj[ k ];
+            }
+        }
+        return FUNCTIONS;
+    };
+    
+    Xpresion.defRuntimeFunc = function( obj, Fn ) {
+        if ( 'object' === typeof obj )
+        {
+            Fn = Fn || Xpresion.Fn;
+            for (var k in obj)
+            {
+                if ( obj[HAS](k) ) Fn[ k ] = obj[ k ];
+            }
+        }
+        return Fn;
     };
 
     Xpresion.Tok = Tok = function Tok( type, input, output, value ) {
@@ -480,7 +778,7 @@
         self.parenthesize = false;
         self.revert = false;
     };
-    Tok.render = function( t ) { return (t instanceof Tok) ? t.render() : t; };
+    Tok.render = function( t ) { return (t instanceof Tok) ? t.render() : String(t); };
     Tok[PROTO] = {
         constructor: Tok
         
@@ -526,7 +824,7 @@
         ,render: function( args ) {
             var self = this,
                 token = self.output, 
-                p = self.paren,
+                p = self.parenthesize,
                 lparen = p ? Xpresion.LPAREN : '',
                 rparen = p ? Xpresion.RPAREN : '',
                 out
@@ -548,6 +846,7 @@
         if ( !(self instanceof Op) ) 
             return new Op(input, fixity, associativity, priority, arity, output, otype, ofixity);
         
+        input = input || '';
         self.parts = [].concat( input );
         
         // n-ary/multi-part operator
@@ -565,11 +864,64 @@
         self.ofixity = undef !== ofixity ? ofixity : self.fixity;
         self.parenthesize = false;
         self.revert = false;
+        self.morphes = null;
+    };
+    Op.Condition = function( f ) {
+        return ['function'===typeof f[0] 
+                ? f[0] 
+                : Tpl.compile(Tpl.multisplit(f[0],{'${POS}':0,'${TOKS}':1,'${OPS}':2,'${TOK}':3,'${OP}':4,'${PREV_IS_OP}':5,'${DEDUCED_TYPE}':6,'${XPRESION}':7}), true),
+                f[1]];
     };
     Op[PROTO] = Extend( Tok[PROTO] );
     Op[PROTO].otype = null;
     Op[PROTO].ofixity = null;
     Op[PROTO].parts = null;
+    Op[PROTO].morphes = null;
+    Op[PROTO].dispose = function( ) {
+        var self = this;
+        Tok[PROTO].dispose.call(self);
+        self.otype = null;
+        self.ofixity = null;
+        self.parts = null;
+        self.morphes = null;
+        return self;
+    };
+    Op[PROTO].Polymorphic = function(morphes) {
+        var self = this;
+        self.type = T_POLY_OP;
+        self.morphes = (morphes || [ ]).map( Op.Condition );
+        return self;
+    };
+    Op[PROTO].morph = function( args ) {
+        var morphes = this.morphes, l = morphes.length, i = 0, 
+            op, minop = morphes[0][1], found = false;
+        
+        if (args.length < 8)
+        {
+            args.push(args[1].length ? args[1][args[1].length-1] : false);
+            args.push(args[2].length ? args[2][0] : false);
+            args.push(args[4] ? (args[4].pos+1===args[0]) : false);
+            args.push(args[4] ? args[4].type : (args[3] ? args[3].type : 0));
+            args.push(Xpresion);
+        }
+        
+        while ( i < l )
+        {
+            op = morphes[i++];
+            if ( true === Boolean(op[0]( args )) ) 
+            {
+                op = op[1];
+                found = true;
+                break;
+            }
+            if ( op[1].priority >= minop.priority ) minop = op[1];
+        }
+        // try to return minimum priority operator, if none matched
+        if ( !found ) op = minop;
+        // nested polymorphic op, if any
+        while ( T_POLY_OP === op.type ) op = op.morph( args );
+        return op;
+    };
     Op[PROTO].render = function( args ) {
         args = args || [];
         var self = this, i,
@@ -582,8 +934,11 @@
             out_fixity = self.ofixity, 
             numargs = args.length, out
         ;
-        if ( (T_DUM === output_type) && numargs ) 
-            output_type = args[ 0 ].type;
+        //if ( (T_DUM === output_type) && numargs ) 
+        //    output_type = args[ 0 ].type;
+        
+        //args = args.map( Tok.render );
+        
         if ( op instanceof Tpl )
             out = lparen + op.render( args ) + rparen;
         else if ( INFIX === out_fixity )
@@ -599,70 +954,16 @@
         var self = this, otype = self.otype, n;
         if ( self.revert ) args.reverse( );
         if ( (T_DUM === otype) && args.length ) otype = args[ 0 ].type;
+        else if ( args.length ) args[0].type = otype;
         n = Node(otype, self, args, pos);
-        
         if ( (T_N_OP === self.type) && (arguments.length > 2) )
         {
-            n.parts = self.parts.slice(1);
+            n.op_parts = self.parts.slice(1);
             n.op_index = arguments[2];
-            n.next = function( op ) {
-                var is_next = (0 === this.parts.indexOf( op.input ));
-                if ( is_next ) this.parts = this.parts.slice(1);
-                return is_next;
-            };
-            n.complete = function( ) {
-                return !this.parts.length;
-            };
         }
-        
         return n;
     };
     
-    Xpresion.PolyMorph = PolyMorph = function PolyMorph( morphs ) {
-        var self = this;
-        if ( !(self instanceof PolyMorph) ) return new PolyMorph( morphs );
-        Op.call(self);
-        self.type = T_POLY_OP;
-        self.morphes = (morphs || [ ]).map( PolyMorph.condition );
-    };
-    PolyMorph.condition = function( f ) {
-        return ['function'===typeof f[0] 
-                ? f[0] 
-                : Tpl.compile(Tpl.multisplit(f[0],{'${POS}':0,'${TOKS}':1,'${OPS}':2,'${TOK}':3,'${OP}':4,'${PREV_IS_OP}':5,'${CUR_TYPE}':6,'${XPRESION}':7}), true),
-                f[1]];
-    };
-    PolyMorph[PROTO] = Extend( Op[PROTO] );
-    PolyMorph[PROTO].morphes = null;
-    PolyMorph[PROTO].morph = function( args ) {
-        var morphes = this.morphes, l = morphes.length, i = 0, 
-            op, minop = morphes[0][1], found = false;
-        
-        if (args.length < 8)
-        {
-            args.push(args[1].length ? args[1][0] : false);
-            args.push(args[2].length ? args[2][0] : false);
-            args.push(args[4] ? (args[4].pos+1===args[0]) : false);
-            args.push(args[3] ? args[3].type : (args[4] ? args[4].type : 0));
-            args.push(Xpresion);
-        }
-        
-        while ( i < l )
-        {
-            op = morphes[i++];
-            if ( true === op[0]( args ) ) 
-            {
-                op = op[1];
-                found = true;
-                break;
-            }
-            if ( op[1].priority >= minop.priority ) minop = op[1];
-        }
-        // try to return minimum priority operator, if none matched
-        if ( !found ) op = minop;
-        // nested polymorphic op, if any
-        while ( T_POLY_OP === op.type ) op = op.morph( args );
-        return op;
-    };
     Xpresion.Func = Func = function Func( input, output, otype, priority, associativity, fixity ) {
         var self = this;
         if ( !(self instanceof Func) ) return new Func(input, output, otype, priority, associativity, fixity);
@@ -728,220 +1029,8 @@
         
         ,compile: function( AST ) {
             // depth-first traversal and rendering of Abstract Syntax Tree (AST)
-            var evaluator_str = Node.DFT( AST, Xpresion.render_action, true );
+            var evaluator_str = Node.DFT( AST, Xpresion.render, true );
             return [evaluator_str, F('Var,Fn,Cache', '"use strict"; return ' + evaluator_str + ';')];
-        }
-        
-        ,parse: function( expr ) {
-            var self = this, l
-                
-                ,e, ch, v
-                ,i, m, t, AST, OPS, NOPS, t_index
-                
-                ,Xp = Xpresion, Tok = Xp.Tok
-                ,get_entry = Alias.get_entry
-                ,reduce = Xp.reduce, evaluator
-                
-                ,RE = self.RE, BLOCK = self[BLOCKS], block, block_rest
-                ,t_var_is_also_ident = !RE[HAS]('t_var')
-                
-                ,err = 0, errpos, errmsg
-            ;
-            
-            if ( !arguments.length ) expr = self.source;
-            else self.source = expr;
-            
-            l = expr.length;
-            self._cnt = 0;
-            self._symbol_table = { };
-            self._cache = { };
-            self.variables = { };
-            AST = [ ]; OPS = [ ]; NOPS = [ ]; t_index = 0; i = 0;
-            
-            while ( i < l )
-            {
-                ch = expr.charAt( i );
-                
-                // use customized (escaped) delimited blocks here
-                // add a "date" block as well with #..#
-                if ( block = get_entry(BLOCK, ch) ) // string or regex or date ('"`#)
-                {
-                    v = block.parse(expr, i, l, ch);
-                    if ( false !== v )
-                    {
-                        i += v.length;
-                        if ( block[HAS]('rest') )
-                        {
-                            block_rest = block.rest(expr, i, l) || '';
-                        }
-                        else
-                        {
-                            block_rest = '';
-                        }
-                        i += block_rest.length;
-                        
-                        t = self.t_block( v, block.type, block_rest );
-                        if ( false !== t )
-                        {
-                            ++t_index;
-                            AST.unshift( t.node(null, t_index) );
-                            continue;
-                        }
-                    }
-                }
-                
-                e = expr.slice( i );
-                
-                if ( m = e.match( RE.t_spc ) ) // space
-                {
-                    i += m[ 0 ].length;
-                    continue;
-                }
-
-                if ( m = e.match( RE.t_num ) ) // number
-                {
-                    t = self.t_liter( m[ 1 ], T_NUM );
-                    if ( false !== t )
-                    {
-                        ++t_index;
-                        AST.unshift( t.node(null, t_index) );
-                        i += m[ 0 ].length;
-                        continue;
-                    }
-                }
-                
-                if ( m = e.match( RE.t_ident ) ) // ident, reserved, function, operator, etc..
-                {
-                    t = self.t_liter( m[ 1 ], T_IDE ); // reserved keyword
-                    if ( false !== t )
-                    {
-                        ++t_index;
-                        AST.unshift( t.node(null, t_index) );
-                        i += m[ 0 ].length;
-                        continue;
-                    }
-                    t = self.t_op( m[ 1 ] ); // (literal) operator
-                    if ( false !== t )
-                    {
-                        ++t_index;
-                        reduce( AST, OPS, NOPS, t, t_index );
-                        i += m[ 0 ].length;
-                        continue;
-                    }
-                    if ( t_var_is_also_ident )
-                    {
-                        t = self.t_var( m[ 1 ] ); // variables are also same identifiers
-                        if ( false !== t )
-                        {
-                            ++t_index;
-                            AST.unshift( t.node(null, t_index) );
-                            i += m[ 0 ].length;
-                            continue;
-                        }
-                    }
-                }
-                
-                if ( m = e.match( RE.t_special ) ) // special symbols..
-                {
-                    v = m[ 1 ]; t = false;
-                    while ( v.length > 0 ) // try to match maximum length op/func
-                    {
-                        t = self.t_op( v ); // function, (non-literal) operator
-                        if ( false !== t ) break;
-                        v = v.slice( 0, -1 );
-                    }
-                    if ( false !== t )
-                    {
-                        ++t_index;
-                        reduce( AST, OPS, NOPS, t, t_index );
-                        i += v.length;
-                        continue;
-                    }
-                }
-                
-                if ( !t_var_is_also_ident && (m = e.match( RE.t_var )) ) // variables
-                {
-                    t = self.t_var( m[ 1 ] );
-                    if ( false !== t )
-                    {
-                        ++t_index;
-                        AST.unshift( t.node(null, t_index) );
-                        i += m[ 0 ].length;
-                        continue;
-                    }
-                }
-                
-                if ( m = e.match( RE.t_nonspc ) ) // other non-space tokens/symbols..
-                {
-                    t = self.t_liter( m[ 1 ], T_LIT ); // reserved keyword
-                    if ( false !== t )
-                    {
-                        ++t_index;
-                        AST.unshift( t.node(null, t_index) );
-                        i += m[ 0 ].length;
-                        continue;
-                    }
-                    t = self.t_op( m[ 1 ] ); // function, other (non-literal) operator
-                    if ( false !== t )
-                    {
-                        ++t_index;
-                        reduce( AST, OPS, NOPS, t, t_index );
-                        i += m[ 0 ].length;
-                        continue;
-                    }
-                    t = self.t_tok( m[ 1 ] );
-                    ++t_index;
-                    AST.unshift( t.node(null, t_index) ); // pass-through ..
-                    i += m[ 0 ].length;
-                    //continue;
-                }
-            }
-            
-            err = 0;
-            reduce( AST, OPS, NOPS );
-            
-            if ( (1 !== AST.length) || (OPS.length > 0) )
-            {
-                err = 1;
-                errmsg = 'Parse Error, Mismatched Parentheses or Operators';
-            }
-            
-            if ( !err )
-            {
-                
-                try {
-                    
-                    evaluator = self.compile( AST[0] );
-                
-                } catch( e ) {
-                    
-                    err = 1;
-                    errmsg = 'Compilation Error, ' + e.message + '';
-                }
-            }
-            
-            NOPS = null; OPS = null; AST = null;
-            self._symbol_table = null;
-            
-            if ( err )
-            {
-                evaluator = null;
-                self.variables = [ ];
-                self._cnt = 0;
-                self._cache = { };
-                self._evaluator_str = '';
-                self._evaluator = self.dummy_evaluator;
-                console.error( 'Xpresion Error: ' + errmsg + ' at ' + expr );
-            }
-            else
-            {
-                // make array
-                self.variables = Keys( self.variables );
-                self._evaluator_str = evaluator[0];
-                self._evaluator = evaluator[1];
-            }
-            
-            return self; 
         }
         
         ,evaluator: function( evaluator ) {
@@ -1005,7 +1094,7 @@
                 }
                 return Tok(T_REX, token, 'Cache.'+id+'');
             }
-            else if ( T_DTM === type )
+            /*else if ( T_DTM === type )
             {
                 rest = (rest || '').slice(1,-1);
                 var sid = 'dt_'+token+rest, id, rs;
@@ -1021,7 +1110,7 @@
                     this._symbol_table[sid] = id;
                 }
                 return Tok(T_DTM, token, 'Cache.'+id+'');
-            }
+            }*/
             return false;
         }
         
@@ -1040,73 +1129,6 @@
         ,t_tok: function( token ) { return Tok(T_DFT, token, token); }
     };
     
-    Xpresion.defRE = function( obj, RE ) {
-        if ( 'object' === typeof obj )
-        {
-            RE = RE || Xpresion.RE;
-            for (var k in obj)
-            {
-                if ( obj[HAS](k) ) RE[ k ] = obj[ k ];
-            }
-        }
-        return RE;
-    };
-    Xpresion.defBlock = function( obj, BLOCK ) {
-        if ( 'object' === typeof obj )
-        {
-            BLOCK = BLOCK || Xpresion[BLOCKS];
-            for (var k in obj)
-            {
-                if ( obj[HAS](k) ) BLOCK[ k ] = obj[ k ];
-            }
-        }
-        return BLOCK;
-    };
-    Xpresion.defReserved = function( obj, Reserved ) {
-        if ( 'object' === typeof obj )
-        {
-            Reserved = Reserved || Xpresion.Reserved;
-            for (var k in obj)
-            {
-                if ( obj[HAS](k) ) Reserved[ k ] = obj[ k ];
-            }
-        }
-        return Reserved;
-    };
-    Xpresion.defOp = function( obj, OPERATORS ) {
-        if ( 'object' === typeof obj )
-        {
-            OPERATORS = OPERATORS || Xpresion[OPS];
-            for (var k in obj)
-            {
-                if ( obj[HAS](k) ) OPERATORS[ k ] = obj[ k ];
-            }
-        }
-        return OPERATORS;
-    };
-    Xpresion.defFunc = function( obj, FUNCTIONS ) {
-        if ( 'object' === typeof obj )
-        {
-            FUNCTIONS = FUNCTIONS || Xpresion[FUNCS];
-            for (var k in obj)
-            {
-                if ( obj[HAS](k) ) FUNCTIONS[ k ] = obj[ k ];
-            }
-        }
-        return FUNCTIONS;
-    };
-    Xpresion.defRuntimeFunc = function( obj, Fn ) {
-        if ( 'object' === typeof obj )
-        {
-            Fn = Fn || Xpresion.Fn;
-            for (var k in obj)
-            {
-                if ( obj[HAS](k) ) Fn[ k ] = obj[ k ];
-            }
-        }
-        return Fn;
-    };
-
     Xpresion.init = function( ) {
     if ( __inited ) return;
     
@@ -1135,12 +1157,12 @@
     ,'/'    :     Op('/',       INFIX,   LEFT,          20,        2,    Tpl('($0/$1)'), T_NUM )
     ,'%'    :     Op('&',       INFIX,   LEFT,          20,        2,    Tpl('($0%$1)'), T_NUM )
                   // addition/concatenation/unary plus as polymorphic operators
-    ,'+'    :     PolyMorph([
+    ,'+'    :     Op().Polymorphic([
                   // array concatenation
-                  ["${TOK} && !${PREV_IS_OP} && (${CUR_TYPE}==${XPRESION}.T_ARY)",
-                  Op('+',       INFIX,   LEFT,          25,        2,    Tpl('[].concat($0,$1)'), T_ARY )]
+                  ["${TOK} && !${PREV_IS_OP} && (${DEDUCED_TYPE}===${XPRESION}.T_ARY)",
+                  Op('+',       INFIX,   LEFT,          25,        2,    Tpl('Fn.ary_merge($0,$1)'), T_ARY )]
                   // string concatenation
-                  ,["${TOK} && !${PREV_IS_OP} && (${CUR_TYPE}==${XPRESION}.T_STR)",
+                  ,["${TOK} && !${PREV_IS_OP} && (${DEDUCED_TYPE}===${XPRESION}.T_STR)",
                   Op('+',       INFIX,   LEFT,          25,        2,    Tpl('($0+String($1))'), T_STR )]
                   // numeric addition
                   ,["${TOK} && !${PREV_IS_OP}",
@@ -1150,7 +1172,7 @@
                   Op('+',       PREFIX,  RIGHT,          4,        1,    Tpl('$0'),  T_NUM )]
                   ])
     
-    ,'-'    :     PolyMorph([
+    ,'-'    :     Op().Polymorphic([
                   // numeric subtraction
                   ["${TOK} && !${PREV_IS_OP}",
                   Op('-',       INFIX,   LEFT,          25,        2,    Tpl('($0-$1)'), T_NUM )]
@@ -1167,9 +1189,9 @@
     ,'>='   :     Op('>=',      INFIX,   LEFT,          35,        2,    Tpl('($0>=$1)'), T_BOL )
     ,'<='   :     Op('<=',      INFIX,   LEFT,          35,        2,    Tpl('($0<=$1)'), T_BOL )
     
-    ,'=='   :     PolyMorph([
+    ,'=='   :     Op().Polymorphic([
                   // array equivalence
-                  ["${CUR_TYPE}==${XPRESION}.T_ARY",
+                  ["${DEDUCED_TYPE}===${XPRESION}.T_ARY",
                   Op('==',      INFIX,   LEFT,          40,        2,    Tpl('Fn.ary_eq($0,$1)'), T_BOL )]
                   // default equivalence
                   ,["true",
@@ -1193,6 +1215,7 @@
      -------------------------------------------*/
     ,'or'    :    Alias( '||' )
     ,'and'   :    Alias( '&&' )
+    ,'not'   :    Alias( '!' )
     };
     
     Xpresion[FUNCS] = {
@@ -1204,9 +1227,9 @@
     ,'pow'      : Func('pow',   Tpl('Math.pow($0)'),  T_NUM,   5  )
     ,'sqrt'     : Func('sqrt',  Tpl('Math.sqrt($0)'), T_NUM,   5  )
     ,'len'      : Func('len',   Tpl('Fn.len($0)'),    T_NUM,   5  )
-    ,'int'      : Func('int',   Tpl('Fn.toint($0)'),  T_NUM,   5  )
-    ,'str'      : Func('str',   Tpl('Fn.tostr($0)'),  T_STR,   5  )
-    ,'iif'      : Func('iif',   Tpl('Fn.iif($0)'),    T_BOL,   5  )
+    ,'int'      : Func('int',   Tpl('parseInt($0)'),  T_NUM,   5  )
+    ,'str'      : Func('str',   Tpl('String($0)'),  T_STR,   5  )
+    //,'iif'      : Func('iif',   Tpl('Fn.iif($0)'),    T_BOL,   5  )
     ,'clamp'    : Func('clamp', Tpl('Fn.clamp($0)'),  T_NUM,   5  )
     ,'sum'      : Func('sum',   Tpl('Fn.sum($0)'),    T_NUM,   5  )
     ,'avg'      : Func('avg',   Tpl('Fn.avg($0)'),    T_NUM,   5  )
@@ -1218,47 +1241,51 @@
     
     // function implementations (can also be overriden per instance/evaluation call)
     Xpresion.Fn = {
-     'toint'    :   function( v, base ){ return parseInt( v, base || 10 ); }
-    ,'tostr'    :   function( v ){ return String(v) }
-    ,'iif'      :   function( cond, if_branch, else_branch ){ 
-                        return !!cond ? if_branch : else_branch; 
-                    }
-    ,'clamp'    :   function( v, m, M ){ 
-                        if ( m > M ) return v > m ? m : (v < M ? M : v); 
-                        else return v > M ? M : (v < m ? m : v); 
-                    }
+     /*'toint'    :   function( v, base ){ return parseInt( v, base || 10 ); }
+    ,'tostr'    :   function( v ){ return String(v) }*/
+    /*,'iif'      :   function( cond, if_branch, else_branch ){ 
+        return !!cond ? if_branch : else_branch; 
+    }*/
+     'clamp'    :   function( v, m, M ){ 
+        if ( m > M ) return v > m ? m : (v < M ? M : v); 
+        else return v > M ? M : (v < m ? m : v); 
+    }
     ,'len'    :   function( v ){ 
-                        if ( v )
-                        {
-                            if ( v.substr || v.push ) return v.length;
-                            if ( Object === v.constructor ) return Keys(v).length;
-                            return 1;
-                        }
-                        return 0;
-                    }
+        if ( v )
+        {
+            if ( v.substr || v.push ) return v.length;
+            if ( Object === v.constructor ) return Keys(v).length;
+            return 1;
+        }
+        return 0;
+    }
     ,'sum'      :   function( ){
-                        var args = arguments, i, l, s = 0;
-                        if (args[0] && Array === args[0].constructor ) args = args[0];
-                        l = args.length;
-                        if ( l > 0 ) { for(i=0; i<l; i++) s += args[i]; }
-                        return s;
-                    }
+        var args = arguments, i, l, s = 0;
+        if (args[0] && Array === args[0].constructor ) args = args[0];
+        l = args.length;
+        if ( l > 0 ) { for(i=0; i<l; i++) s += args[i]; }
+        return s;
+    }
     ,'avg'      :   function( ){
-                        var args = arguments, i, l, s = 0;
-                        if (args[0] && Array === args[0].constructor ) args = args[0];
-                        l = args.length;
-                        if ( l > 0 ) { for(i=0; i<l; i++) s += args[i]; s = s/l;}
-                        return s;
-                    }
+        var args = arguments, i, l, s = 0;
+        if (args[0] && Array === args[0].constructor ) args = args[0];
+        l = args.length;
+        if ( l > 0 ) { for(i=0; i<l; i++) s += args[i]; s = s/l;}
+        return s;
+    }
     ,'ary_eq'   :   function(a1, a2){
-                        var l = a1.length, eq = (l===a2.length), i;
-                        if ( eq )
-                        {
-                            for (i=0; i<l; i++) 
-                                if ( a1[i]!=a2[i] ) return false;
-                        }
-                        return eq;
-                    }
+        var l = a1.length, i;
+        if ( l===a2.length )
+        {
+            for (i=0; i<l; i++) 
+                if ( a1[i]!=a2[i] ) return false;
+        }
+        else return false;
+        return true;
+    }
+    ,'ary_merge'   :   function(a1, a2){
+        return [].concat(a1,a2);
+    }
     ,'match'  :   function( str, regex ){ return regex.test( str ); }
     ,'contains':  function( list, item ){ return -1 < list.indexOf( item ); }
     };
@@ -1278,17 +1305,17 @@
     Xpresion[BLOCKS] = {
      '\'': {
         type: T_STR, 
-        parse: function(s,i,l,d){return Xpresion.parse_delimited_block(s,i,l,d,true);}
+        parse: Xpresion.parse_delimited_block
     }
-     ,'"': Alias('\'')
-     ,'`': {
+    ,'"': Alias('\'')
+    ,'`': {
         type: T_REX, 
-        parse: function(s,i,l,d){return Xpresion.parse_delimited_block(s,i,l,d,true);},
+        parse: Xpresion.parse_delimited_block,
         rest: function(s,i,l){
             var rest = '', ch, 
-                has_i=false, has_g=false, 
-                seq = 0, i2 = i+seq,
-                not_done = true;
+            has_i=false, has_g=false, 
+            seq = 0, i2 = i+seq,
+            not_done = true;
             while ( i2 < l && not_done )
             {
                 ch = s.charAt( i2++ ); seq+=1;
@@ -1310,16 +1337,16 @@
             return rest;
         }
     }
-     ,'#': {
-        type: T_DTM, 
-        parse: function(s,i,l,d){return Xpresion.parse_delimited_block(s,i,l,d,true);},
-        rest: function(s,i,l){
-            var rest = '"Y-m-d"', ch = i < l ? s.charAt( i ) : '';
-            if ( '"' === ch || "'" === ch ) 
-                rest = Xpresion.parse_delimited_block(s,i,l,ch,true);
-            return rest;
-        }
+    /*,'#': {
+    type: T_DTM, 
+    parse: Xpresion.parse_delimited_block,
+    rest: function(s,i,l){
+    var rest = '"Y-m-d"', ch = i < l ? s.charAt( i ) : '';
+    if ( '"' === ch || "'" === ch ) 
+    rest = Xpresion.parse_delimited_block(s,i,l,ch,true);
+    return rest;
     }
+    }*/
     };
     
     Xpresion.Reserved = {

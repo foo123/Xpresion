@@ -1,3 +1,4 @@
+Xpresion Module loaded succesfully
 Xpresion.VERSION 0.5
 
 Expression: 13
@@ -14,24 +15,24 @@ Variables : []
 Evaluator : (-3)
 Expression: ("1,2,3")+3
 Variables : []
-Evaluator : ("1,2,3"+String(3))
+Evaluator : ("1,2,3"+str(3))
 Data      : {}
-Result    : "1,2,33"
+Result    : '1,2,33'
 Expression: "1,2,3"+3
 Variables : []
-Evaluator : ("1,2,3"+String(3))
+Evaluator : ("1,2,3"+str(3))
 Data      : {}
-Result    : "1,2,33"
+Result    : '1,2,33'
 Expression: "1,2,3"+3+4
 Variables : []
-Evaluator : (("1,2,3"+String(3))+String(4))
+Evaluator : (("1,2,3"+str(3))+str(4))
 Data      : {}
-Result    : "1,2,334"
+Result    : '1,2,334'
 Expression: [1,2,3]+3
 Variables : []
 Evaluator : Fn.ary_merge([1,2,3],3)
 Data      : {}
-Result    : [1,2,3,3]
+Result    : [1, 2, 3, 3]
 Expression: -3+2
 Variables : []
 Evaluator : ((-3)+2)
@@ -60,25 +61,25 @@ Variables : []
 Evaluator : (2*(-1))
 Expression: 2^-1
 Variables : []
-Evaluator : Math.pow(2,(-1))
+Evaluator : (2**(-1))
 Expression: 2^(-1)
 Variables : []
-Evaluator : Math.pow(2,(-1))
+Evaluator : (2**(-1))
 Expression: 2^-1^3
 Variables : []
-Evaluator : Math.pow(2,Math.pow((-1),3))
+Evaluator : (2**((-1)**3))
 Expression: -2^-1^3
 Variables : []
-Evaluator : Math.pow((-2),Math.pow((-1),3))
+Evaluator : ((-2)**((-1)**3))
 Expression: 2^(-1)^3
 Variables : []
-Evaluator : Math.pow(2,Math.pow((-1),3))
+Evaluator : (2**((-1)**3))
 Expression: $v
 Variables : [v]
 Evaluator : Var["v"]
 Expression: True
 Variables : []
-Evaluator : true
+Evaluator : True
 Expression: "string"
 Variables : []
 Evaluator : "string"
@@ -87,13 +88,13 @@ Variables : []
 Evaluator : ["a","rra","y"]
 Expression: `^regex?`i
 Variables : []
-Evaluator : Cache.re_1
+Evaluator : Cache["re_1"]
 Expression: 0 == 1
 Variables : []
 Evaluator : (0==1)
 Expression: TRUE == False
 Variables : []
-Evaluator : (true==false)
+Evaluator : (True==False)
 Expression: 1+2
 Variables : []
 Evaluator : (1+2)
@@ -117,31 +118,31 @@ Variables : []
 Evaluator : ((1*2)/3)
 Expression: 1^2
 Variables : []
-Evaluator : Math.pow(1,2)
+Evaluator : (1**2)
 Expression: 1^2^3
 Variables : []
-Evaluator : Math.pow(1,Math.pow(2,3))
+Evaluator : (1**(2**3))
 Expression: 1^(2^3)
 Variables : []
-Evaluator : Math.pow(1,Math.pow(2,3))
+Evaluator : (1**(2**3))
 Expression: (1^2)^3
 Variables : []
-Evaluator : Math.pow(Math.pow(1,2),3)
+Evaluator : ((1**2)**3)
 Expression: ((1^2))^3
 Variables : []
-Evaluator : Math.pow(Math.pow(1,2),3)
+Evaluator : ((1**2)**3)
 Expression: `^regex?`i matches "string"
 Variables : []
-Evaluator : Cache.re_1.test("string")
+Evaluator : bool(Cache["re_1"].match("string"))
 Expression: `^regex?`i matches "string" and `^regex?`i matches "string2"
 Variables : []
-Evaluator : (Cache.re_1.test("string")&&Cache.re_1.test("string2"))
+Evaluator : (bool(Cache["re_1"].match("string")) and bool(Cache["re_1"].match("string2")))
 Expression: ["a","b","c"] has $v
 Variables : [v]
-Evaluator : (-1<["a","b","c"].indexOf(Var["v"]))
+Evaluator : (Var["v"] in ["a","b","c"])
 Expression: $v in ["a","b","c"]
 Variables : [v]
-Evaluator : (-1<["a","b","c"].indexOf(Var["v"]))
+Evaluator : (Var["v"] in ["a","b","c"])
 Expression: 1 ? (2+3) : (3+4)
 Variables : []
-Evaluator : (1?(2+3):(3+4))
+Evaluator : ((2+3) if 1 else (3+4))

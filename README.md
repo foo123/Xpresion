@@ -4,7 +4,11 @@ Xpr3s10n
 a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/JS, ActionScript
 
 
-**version 0.5-alpha** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
+
+**light-weight (~16kB minified, ~6kB zipped)**
+
+
+**version 0.5** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
 
 
 
@@ -114,11 +118,12 @@ echo(Xpresion('`^regex?`i matches "string" and `^regex?`i matches "string2"').de
 echo(Xpresion('["a","b","c"] has $v').debug());
 echo(Xpresion('$v in ["a","b","c"]').debug());
 echo(Xpresion('1 ? (2+3) : (3+4)').debug());
+
 ```
 
 **output**
 ```text
-Xpresion.VERSION 0.5-alpha
+Xpresion.VERSION 0.5
 
 Expression: 13
 Variables : []
@@ -144,12 +149,12 @@ Data      : {}
 Result    : "1,2,33"
 Expression: "1,2,3"+3+4
 Variables : []
-Evaluator : (("1,2,3"+String(3))+4)
+Evaluator : (("1,2,3"+String(3))+String(4))
 Data      : {}
 Result    : "1,2,334"
 Expression: [1,2,3]+3
 Variables : []
-Evaluator : [].concat([1,2,3],3)
+Evaluator : Fn.ary_merge([1,2,3],3)
 Data      : {}
 Result    : [1,2,3,3]
 Expression: -3+2
@@ -295,14 +300,14 @@ Xpresion.defFunc({
 // define a runtime function (called during evaluation) which implements the 'len' function
 Xpresion.defRuntimeFunc({
     'len'    :   function( v ){ 
-                        if ( v )
-                        {
-                            if ( v.substr || v.push ) return v.length;
-                            if ( Object === v.constructor ) return Object.keys(v).length;
-                            return 1;
-                        }
-                        return 0;
-                    }
+        if ( v )
+        {
+            if ( v.substr || v.push ) return v.length;
+            if ( Object === v.constructor ) return Object.keys(v).length;
+            return 1;
+        }
+        return 0;
+    }
 });
 
 // new Xpresion(..) will also work
@@ -335,6 +340,6 @@ expr.evaluate(Object data [, Object Fn=instance.Fn] );
 
 ####TODO
 
-* implementations for PHP, Python, ActionScript
+* implementations for PHP, ActionScript
 * documentation, examples, live examples
 
