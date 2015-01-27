@@ -829,6 +829,8 @@
                 rparen = p ? Xpresion.RPAREN : '',
                 out
             ;
+            if (!args) args = [];
+            args.unshift(self.input);
             if ( token instanceof Tpl )             out = token.render( args );
             else                                    out = token;
             return lparen + out + rparen;
@@ -923,7 +925,7 @@
         return op;
     };
     Op[PROTO].render = function( args ) {
-        args = args || [];
+        if (!args || !args.length) args = ['',''];
         var self = this, i,
             output_type = self.otype,
             op = self.output, 
@@ -1149,8 +1151,8 @@
     ,'?'    :     Op(['?',':'], INFIX,   LEFT,         100,        3,    Tpl('($0?$1:$2)'), T_BOL )
     ,':'    :     Op(':')
     
-    ,'!'    :     Op('!',       PREFIX,  RIGHT,         10,        1,    Tpl('!($0)'), T_BOL )
-    ,'~'    :     Op('~',       PREFIX,  RIGHT,         10,        1,    Tpl('~($0)'), T_NUM )
+    ,'!'    :     Op('!',       PREFIX,  RIGHT,         10,        1,    Tpl('!$0'), T_BOL )
+    ,'~'    :     Op('~',       PREFIX,  RIGHT,         10,        1,    Tpl('~$0'), T_NUM )
     
     ,'^'    :     Op('^',       INFIX,   RIGHT,         11,        2,    Tpl('Math.pow($0,$1)'), T_NUM, PREFIX )
     ,'*'    :     Op('*',       INFIX,   LEFT,          20,        2,    Tpl('($0*$1)'), T_NUM ) 

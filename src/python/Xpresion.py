@@ -150,7 +150,7 @@ def parse_re_flags(s,i,l):
             has_i = True
         
         if 'g' == ch and not has_g:
-            #flags += 'g'
+            flags += 'g'
             has_g = True
         
         if seq >= 2 or (not has_i and not has_g):
@@ -229,7 +229,7 @@ class Tpl:
                 key = key.split('.') if len(key) else []
             else: 
                 key = [key]
-            #givenArgsLen = bool(None !=argslen and isinstance(key,str))
+            #givenArgsLen = bool(None !=argslen and isinstance(argslen,str))
             
             for k in key:
                 kn = int(k,10) if isinstance(k,str) else k
@@ -283,6 +283,9 @@ class Tpl:
         self.tpl = Tpl.multisplit( tpl, Tpl.defaultArgs if not replacements else replacements )
         if True == compiled: self._renderer = Tpl.compile( self.tpl )
 
+    def __del__(self):
+        self.dispose()
+        
     def dispose(self):
         self.id = None
         self.tpl = None
@@ -348,6 +351,9 @@ class Node:
         self.op_parts = None
         self.op_index = None
     
+    def __del__(self):
+        self.dispose()
+        
     def dispose(self):
         c = self.children
         if c and len(c):
@@ -410,6 +416,9 @@ class Alias:
     def __init__(self, alias):
         self.alias = str(alias)
 
+    def __del__(self):
+        self.alias = None
+        
 
 class Tok:
     
@@ -430,6 +439,9 @@ class Tok:
         self.parenthesize = False
         self.revert = False
     
+    def __del__(self):
+        self.dispose()
+        
     def dispose(self):
         self.type = None
         self.input = None
@@ -462,6 +474,7 @@ class Tok:
         lparen = Xpresion.LPAREN if p else ''
         rparen = Xpresion.RPAREN if p else ''
         if None==args: args=[]
+        args.insert(0, self.input)
         
         if isinstance(token,Tpl):             out = str(token.render( args ))
         else:                                 out = str(token)
@@ -503,6 +516,9 @@ class Op(Tok):
         self.revert = False
         self.morphes = None
     
+    def __del__(self):
+        self.dispose()
+        
     def dispose(self):
         super(Op, self).dispose()
         self.otype = None
@@ -553,7 +569,7 @@ class Op(Tok):
         rparen = Xpresion.RPAREN if p else ''
         comma = Xpresion.COMMA
         out_fixity = self.ofixity
-        if None==args: args=[]
+        if None==args or not len(args): args=['','']
         numargs = len(args)
         
         #if (T_DUM == output_type) and numargs:
@@ -589,6 +605,9 @@ class Func(Op):
         super(Func, self).__init__(input, PREFIX, associativity if None!= associativity else RIGHT, priority, 1, output, otype, fixity if None!=fixity else PREFIX)
         self.type = T_FUN
     
+    def __del__(self):
+        self.dispose()
+        
 
 class Fn:
     # function implementations (can also be overriden per instance/evaluation call)
@@ -657,8 +676,6 @@ class Xpresion:
     
     VERSION = "0.5"
     
-    _inited = False
-    
     COMMA       = COMMA
     LPAREN      = LPAREN
     RPAREN      = RPAREN
@@ -686,6 +703,8 @@ class Xpresion:
     T_N_OP      = T_N_OP   
     T_POLY_OP   = T_POLY_OP
     T_FUN       = T_FUN    
+    
+    _inited = False
     
     Tpl = Tpl
     Node = Node
@@ -1080,6 +1099,9 @@ class Xpresion:
         self.setup( )
         Xpresion.parse( self )
 
+    def __del__(self):
+        self.dispose()
+        
     def dispose(self):
         self.RE = None
         self.Reserved = None
@@ -1211,9 +1233,9 @@ class Xpresion:
         ,':'    :     Op(':')
 
         ,'!'    :     Op('!',       PREFIX,  RIGHT,         10,        1,    Tpl('(not $0)'), T_BOL )
-        ,'~'    :     Op('~',       PREFIX,  RIGHT,         10,        1,    Tpl('~($0)'), T_NUM )
+        ,'~'    :     Op('~',       PREFIX,  RIGHT,         10,        1,    Tpl('~$0'), T_NUM )
 
-        ,'^'    :     Op('^',       INFIX,   RIGHT,         11,        2,    Tpl('($0**$1)'), T_NUM, PREFIX )
+        ,'^'    :     Op('^',       INFIX,   RIGHT,         11,        2,    Tpl('($0**$1)'), T_NUM )
         ,'*'    :     Op('*',       INFIX,   LEFT,          20,        2,    Tpl('($0*$1)'), T_NUM ) 
         ,'/'    :     Op('/',       INFIX,   LEFT,          20,        2,    Tpl('($0/$1)'), T_NUM )
         ,'%'    :     Op('&',       INFIX,   LEFT,          20,        2,    Tpl('($0%$1)'), T_NUM )
@@ -1349,7 +1371,7 @@ class Xpresion:
         ,'inf'      : Alias('inf')
         }
 
-        __inited = True
+        Xpresion._inited = True
     
 Xpresion.init( )
 

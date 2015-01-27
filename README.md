@@ -325,6 +325,9 @@ expr.debug([Object data]);
 // else the default .Fn of the instance will be used (usualy Xpresion.Fn)
 expr.evaluate(Object data [, Object Fn=instance.Fn] );
 
+// get or set the evaluator for current Xpresion instance
+expr.evaluator([Function evaluator]);
+
 // NOTE:
 // For parsing custom expresion syntaxes,
 // the best way is to extend the Xpresion class
@@ -332,6 +335,99 @@ expr.evaluate(Object data [, Object Fn=instance.Fn] );
 // instead of overriding the default Xpresion configuration,
 // to avoid cluttering the Xpresion namespace
 
+```
+
+**default out-of-the-box Xpresion parser configuration**
+
+```javascript
+// default out-of-the-box Xpresion parser configuration
+//
+
+Xpresion.OPERATORS = {
+// e.g https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
+/*----------------------------------------------------------------------------------------
+ symbol           input,    fixity,  associativity, priority, arity, output,     output_type
+------------------------------------------------------------------------------------------*/
+              // bra-kets as n-ary operators
+ '('    :     Op(['(',')'], POSTFIX, RIGHT,          1,        1,    Tpl('$0'),   T_DUM )
+,')'    :     Op(')')
+
+,'['    :     Op(['[',']'], POSTFIX, RIGHT,          2,        1,    Tpl('[$0]'), T_ARY )
+,']'    :     Op(']')
+
+,','    :     Op(',',       INFIX,   LEFT,           3,        2,    Tpl('$0,$1'), T_DFT )
+              // n-ary (ternary) if-then-else operator
+,'?'    :     Op(['?',':'], INFIX,   LEFT,         100,        3,    Tpl('($0?$1:$2)'), T_BOL )
+,':'    :     Op(':')
+
+,'!'    :     Op('!',       PREFIX,  RIGHT,         10,        1,    Tpl('!$0'), T_BOL )
+,'~'    :     Op('~',       PREFIX,  RIGHT,         10,        1,    Tpl('~$0'), T_NUM )
+
+,'^'    :     Op('^',       INFIX,   RIGHT,         11,        2,    Tpl('Math.pow($0,$1)'), T_NUM, PREFIX )
+,'*'    :     Op('*',       INFIX,   LEFT,          20,        2,    Tpl('($0*$1)'), T_NUM ) 
+,'/'    :     Op('/',       INFIX,   LEFT,          20,        2,    Tpl('($0/$1)'), T_NUM )
+,'%'    :     Op('&',       INFIX,   LEFT,          20,        2,    Tpl('($0%$1)'), T_NUM )
+              // addition/concatenation/unary plus as polymorphic operators
+,'+'    :     Op().Polymorphic([
+              // array concatenation
+              ["${TOK} && !${PREV_IS_OP} && (${DEDUCED_TYPE}===${XPRESION}.T_ARY)",
+              Op('+',       INFIX,   LEFT,          25,        2,    Tpl('Fn.ary_merge($0,$1)'), T_ARY )]
+              // string concatenation
+              ,["${TOK} && !${PREV_IS_OP} && (${DEDUCED_TYPE}===${XPRESION}.T_STR)",
+              Op('+',       INFIX,   LEFT,          25,        2,    Tpl('($0+String($1))'), T_STR )]
+              // numeric addition
+              ,["${TOK} && !${PREV_IS_OP}",
+              Op('+',       INFIX,   LEFT,          25,        2,    Tpl('($0+$1)'),  T_NUM )]
+              // unary plus
+              ,["!${TOK} || ${PREV_IS_OP}",
+              Op('+',       PREFIX,  RIGHT,          4,        1,    Tpl('$0'),  T_NUM )]
+              ])
+
+,'-'    :     Op().Polymorphic([
+              // numeric subtraction
+              ["${TOK} && !${PREV_IS_OP}",
+              Op('-',       INFIX,   LEFT,          25,        2,    Tpl('($0-$1)'), T_NUM )]
+              // unary negation
+              ,["!${TOK} || ${PREV_IS_OP}",
+              Op('-',       PREFIX,  RIGHT,          4,        1,    Tpl('(-$0)'),  T_NUM )]
+              ])
+
+,'>>'   :     Op('>>',      INFIX,   LEFT,          30,        2,    Tpl('($0>>$1)'), T_NUM )
+,'<<'   :     Op('<<',      INFIX,   LEFT,          30,        2,    Tpl('($0<<$1)'), T_NUM )
+
+,'>'    :     Op('>',       INFIX,   LEFT,          35,        2,    Tpl('($0>$1)'),  T_BOL )
+,'<'    :     Op('<',       INFIX,   LEFT,          35,        2,    Tpl('($0<$1)'),  T_BOL )
+,'>='   :     Op('>=',      INFIX,   LEFT,          35,        2,    Tpl('($0>=$1)'), T_BOL )
+,'<='   :     Op('<=',      INFIX,   LEFT,          35,        2,    Tpl('($0<=$1)'), T_BOL )
+
+,'=='   :     Op().Polymorphic([
+              // array equivalence
+              ["${DEDUCED_TYPE}===${XPRESION}.T_ARY",
+              Op('==',      INFIX,   LEFT,          40,        2,    Tpl('Fn.ary_eq($0,$1)'), T_BOL )]
+              // default equivalence
+              ,["true",
+              Op('==',      INFIX,   LEFT,          40,        2,    Tpl('($0==$1)'), T_BOL )]
+              ])
+
+,'!='   :     Op('!=',      INFIX,   LEFT,          40,        2,    Tpl('($0!=$1)'), T_BOL )
+
+,'matches' :  Op('matches', INFIX,   NONE,          40,        2,    Tpl('$0.test($1)'), T_BOL )
+,'in'   :     Op('in',      INFIX,   NONE,          40,        2,    Tpl('(-1<$1.indexOf($0))'), T_BOL )
+,'has'     :  Op('has',     INFIX,   NONE,          40,        2,    Tpl('(-1<$0.indexOf($1))'), T_BOL )
+
+,'&'    :     Op('&',       INFIX,   LEFT,          45,        2,    Tpl('($0&$1)'),  T_NUM )
+,'|'    :     Op('|',       INFIX,   LEFT,          46,        2,    Tpl('($0|$1)'),  T_NUM )
+
+,'&&'   :     Op('&&',      INFIX,   LEFT,          47,        2,    Tpl('($0&&$1)'), T_BOL )
+,'||'   :     Op('||',      INFIX,   LEFT,          48,        2,    Tpl('($0||$1)'), T_BOL )
+ 
+/*------------------------------------------
+                aliases
+ -------------------------------------------*/
+,'or'    :    Alias( '||' )
+,'and'   :    Alias( '&&' )
+,'not'   :    Alias( '!' )
+};
 ```
 
 ####Performance 
