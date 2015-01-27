@@ -436,6 +436,7 @@ Xpresion.OPERATORS = {
 
 ####TODO
 
-* implementations for PHP, ActionScript
+* implementations for ActionScript
+* performance tests
 * documentation, examples, live examples
 
