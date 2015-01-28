@@ -1148,7 +1148,7 @@
     
     ,','    :     Op(',',       INFIX,   LEFT,           3,        2,    Tpl('$0,$1'), T_DFT )
                   // n-ary (ternary) if-then-else operator
-    ,'?'    :     Op(['?',':'], INFIX,   LEFT,         100,        3,    Tpl('($0?$1:$2)'), T_BOL )
+    ,'?'    :     Op(['?',':'], INFIX,   RIGHT,        100,        3,    Tpl('($0?$1:$2)'), T_BOL )
     ,':'    :     Op(':')
     
     ,'!'    :     Op('!',       PREFIX,  RIGHT,         10,        1,    Tpl('!$0'), T_BOL )
@@ -1157,7 +1157,7 @@
     ,'^'    :     Op('^',       INFIX,   RIGHT,         11,        2,    Tpl('Math.pow($0,$1)'), T_NUM, PREFIX )
     ,'*'    :     Op('*',       INFIX,   LEFT,          20,        2,    Tpl('($0*$1)'), T_NUM ) 
     ,'/'    :     Op('/',       INFIX,   LEFT,          20,        2,    Tpl('($0/$1)'), T_NUM )
-    ,'%'    :     Op('&',       INFIX,   LEFT,          20,        2,    Tpl('($0%$1)'), T_NUM )
+    ,'%'    :     Op('%',       INFIX,   LEFT,          20,        2,    Tpl('($0%$1)'), T_NUM )
                   // addition/concatenation/unary plus as polymorphic operators
     ,'+'    :     Op().Polymorphic([
                   // array concatenation

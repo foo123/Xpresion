@@ -1386,7 +1386,7 @@ class Xpresion
             
     ,','    =>     Xpresion::Op(',',       Xpresion::INFIX,   Xpresion::LEFT,           3,        2,    Xpresion::Tpl('$0,$1'), Xpresion::T_DFT )
                    // n-ary (ternary) if-then-else operator
-    ,'?'    =>     Xpresion::Op(array('?',':'), Xpresion::INFIX,   Xpresion::LEFT,         100,        3,    Xpresion::Tpl('($0?$1:$2)'), Xpresion::T_BOL )
+    ,'?'    =>     Xpresion::Op(array('?',':'), Xpresion::INFIX,   Xpresion::RIGHT,     100,        3,    Xpresion::Tpl('($0?$1:$2)'), Xpresion::T_BOL )
     ,':'    =>     Xpresion::Op(':')
             
     ,'!'    =>     Xpresion::Op('!',       Xpresion::PREFIX,  Xpresion::RIGHT,         10,        1,    Xpresion::Tpl('!$0'), Xpresion::T_BOL )
@@ -1395,7 +1395,7 @@ class Xpresion
     ,'^'    =>     Xpresion::Op('^',       Xpresion::INFIX,   Xpresion::RIGHT,         11,        2,    Xpresion::Tpl('pow($0,$1)'), Xpresion::T_NUM, Xpresion::PREFIX )
     ,'*'    =>     Xpresion::Op('*',       Xpresion::INFIX,   Xpresion::LEFT,          20,        2,    Xpresion::Tpl('($0*$1)'), Xpresion::T_NUM ) 
     ,'/'    =>     Xpresion::Op('/',       Xpresion::INFIX,   Xpresion::LEFT,          20,        2,    Xpresion::Tpl('($0/$1)'), Xpresion::T_NUM )
-    ,'%'    =>     Xpresion::Op('&',       Xpresion::INFIX,   Xpresion::LEFT,          20,        2,    Xpresion::Tpl('($0%$1)'), Xpresion::T_NUM )
+    ,'%'    =>     Xpresion::Op('%',       Xpresion::INFIX,   Xpresion::LEFT,          20,        2,    Xpresion::Tpl('($0%$1)'), Xpresion::T_NUM )
                    // addition/concatenation/unary plus as polymorphic operators
     ,'+'    =>     Xpresion::Op()->Polymorphic(array(
                    // array concatenation

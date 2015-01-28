@@ -145,3 +145,6 @@ Evaluator : (-1<["a","b","c"].indexOf(Var["v"]))
 Expression: 1 ? (2+3) : (3+4)
 Variables : []
 Evaluator : (1?(2+3):(3+4))
+Expression: 1 ? (2+3) : 2 ? (3+4) : (4+5)
+Variables : []
+Evaluator : (1?(2+3):(2?(3+4):(4+5)))
