@@ -133,10 +133,10 @@ Variables : []
 Evaluator : ((1**2)**3)
 Expression: `^regex?`i matches "string"
 Variables : []
-Evaluator : bool(Cache["re_1"].match("string"))
+Evaluator : Fn.match("string",Cache["re_1"])
 Expression: `^regex?`i matches "string" and `^regex?`i matches "string2"
 Variables : []
-Evaluator : (bool(Cache["re_1"].match("string")) and bool(Cache["re_1"].match("string2")))
+Evaluator : (Fn.match("string",Cache["re_1"]) and Fn.match("string2",Cache["re_1"]))
 Expression: ["a","b","c"] has $v
 Variables : [v]
 Evaluator : (Var["v"] in ["a","b","c"])
