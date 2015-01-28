@@ -374,10 +374,10 @@ Xpresion.OPERATORS = {
               // addition/concatenation/unary plus as polymorphic operators
 ,'+'    :     Op().Polymorphic([
               // array concatenation
-              ["${TOK} && !${PREV_IS_OP} && (${DEDUCED_TYPE}===${XPRESION}.T_ARY)",
+              ["${TOK} && !${PREV_IS_OP} && (${DEDUCED_TYPE}===Xpresion.T_ARY)",
               Op('+',       INFIX,   LEFT,          25,        2,    Tpl('Fn.ary_merge($0,$1)'), T_ARY )]
               // string concatenation
-              ,["${TOK} && !${PREV_IS_OP} && (${DEDUCED_TYPE}===${XPRESION}.T_STR)",
+              ,["${TOK} && !${PREV_IS_OP} && (${DEDUCED_TYPE}===Xpresion.T_STR)",
               Op('+',       INFIX,   LEFT,          25,        2,    Tpl('($0+String($1))'), T_STR )]
               // numeric addition
               ,["${TOK} && !${PREV_IS_OP}",
@@ -406,7 +406,7 @@ Xpresion.OPERATORS = {
 
 ,'=='   :     Op().Polymorphic([
               // array equivalence
-              ["${DEDUCED_TYPE}===${XPRESION}.T_ARY",
+              ["${DEDUCED_TYPE}===Xpresion.T_ARY",
               Op('==',      INFIX,   LEFT,          40,        2,    Tpl('Fn.ary_eq($0,$1)'), T_BOL )]
               // default equivalence
               ,["true",
