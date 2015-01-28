@@ -491,7 +491,7 @@ class Op(Tok):
 
     def Condition(f):
         return [
-            f[0] if callable(f[0]) else Tpl.compile(Tpl.multisplit(f[0],{'${POS}':0,'${TOKS}':1,'${OPS}':2,'${TOK}':3,'${OP}':4,'${PREV_IS_OP}':5,'${DEDUCED_TYPE}':6,'${XPRESION}':7}), True)
+            f[0] if callable(f[0]) else Tpl.compile(Tpl.multisplit(f[0],{'${POS}':0,'${TOKS}':1,'${OPS}':2,'${TOK}':3,'${OP}':4,'${PREV_IS_OP}':5,'${DEDUCED_TYPE}':6,'Xpresion':7}), True)
             ,f[1]
         ]
     
@@ -1242,10 +1242,10 @@ class Xpresion:
                       # addition/concatenation/unary plus as polymorphic operators
         ,'+'    :     Op().Polymorphic([
                       # array concatenation
-                      ["${TOK} and (not ${PREV_IS_OP}) and (${DEDUCED_TYPE}==${XPRESION}.T_ARY)",
+                      ["${TOK} and (not ${PREV_IS_OP}) and (${DEDUCED_TYPE}==Xpresion.T_ARY)",
                       Op('+',       INFIX,   LEFT,          25,        2,    Tpl('Fn.ary_merge($0,$1)'), T_ARY )]
                       # string concatenation
-                      ,["${TOK} and (not ${PREV_IS_OP}) and (${DEDUCED_TYPE}==${XPRESION}.T_STR)",
+                      ,["${TOK} and (not ${PREV_IS_OP}) and (${DEDUCED_TYPE}==Xpresion.T_STR)",
                       Op('+',       INFIX,   LEFT,          25,        2,    Tpl('($0+str($1))'), T_STR )]
                       # numeric addition
                       ,["${TOK} and not ${PREV_IS_OP}",
@@ -1274,7 +1274,7 @@ class Xpresion:
 
         ,'=='   :     Op().Polymorphic([
                       # array equivalence
-                      ["${DEDUCED_TYPE}==${XPRESION}.T_ARY",
+                      ["${DEDUCED_TYPE}==Xpresion.T_ARY",
                       Op('==',      INFIX,   LEFT,          40,        2,    Tpl('Fn.ary_eq($0,$1)'), T_BOL )]
                       # default equivalence
                       ,["True",

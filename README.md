@@ -118,6 +118,7 @@ echo(Xpresion('`^regex?`i matches "string" and `^regex?`i matches "string2"').de
 echo(Xpresion('["a","b","c"] has $v').debug());
 echo(Xpresion('$v in ["a","b","c"]').debug());
 echo(Xpresion('1 ? (2+3) : (3+4)').debug());
+echo(Xpresion('1 ? (2+3) : 2 ? (3+4) : (4+5)').debug());
 
 ```
 
@@ -270,6 +271,9 @@ Evaluator : (-1<["a","b","c"].indexOf(Var["v"]))
 Expression: 1 ? (2+3) : (3+4)
 Variables : []
 Evaluator : (1?(2+3):(3+4))
+Expression: 1 ? (2+3) : 2 ? (3+4) : (4+5)
+Variables : []
+Evaluator : (1?(2+3):(2?(3+4):(4+5)))
 ```
 
 ####API
