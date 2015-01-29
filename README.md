@@ -347,7 +347,19 @@ expr.evaluator([Function evaluator]);
 // default out-of-the-box Xpresion parser configuration
 //
 
-Xpresion.OPERATORS = {
+Xpresion.defRE({
+/*-----------------------------------------------
+token                re
+-------------------------------------------------*/
+ 't_spc'        :  /^(\s+)/
+,'t_nonspc'     :  /^(\S+)/
+,'t_special'    :  /^([*.\-+\\\/\^\$\(\)\[\]|?<:>&~%!#@=_,;{}]+)/
+,'t_num'        :  /^(\d+(\.\d+)?)/
+,'t_ident'      :  /^([a-zA-Z_][a-zA-Z0-9_]*)\b/
+,'t_var'        :  /^\$([a-zA-Z0-9_][a-zA-Z0-9_.]*)\b/
+});
+
+Xpresion.defOp({
 // e.g https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
 /*------------------------------------------------------------------------------------------------
  symbol     input       ,fixity     ,associativity  ,priority   ,arity  ,output     ,output_type
@@ -475,9 +487,9 @@ Xpresion.OPERATORS = {
 ,'or'    :  Alias( '||' )
 ,'and'   :  Alias( '&&' )
 ,'not'   :  Alias( '!' )
-};
+});
 
-Xpresion.FUNCTIONS = {
+Xpresion.defFunc({
 /*-----------------------------------------------------------------------------------
 symbol              input   ,output             ,output_type    ,priority(default 5)
 ------------------------------------------------------------------------------------*/
@@ -495,7 +507,18 @@ symbol              input   ,output             ,output_type    ,priority(defaul
                 aliases
  ----------------------------------------*/
  // ...
-};
+});
+
+Xpresion.defReserved({
+ 'null'     : Tok(T_IDE, 'null', 'null')
+,'false'    : Tok(T_BOL, 'false', 'false')
+,'true'     : Tok(T_BOL, 'true', 'true')
+,'infinity' : Tok(T_NUM, 'Infinity', 'Infinity')
+,'nan'      : Tok(T_NUM, 'NaN', 'NaN')
+// aliases
+,'none'     : Alias('null')
+,'inf'      : Alias('inf')
+});
 ```
 
 ####Performance 

@@ -21,6 +21,8 @@ else:
 def echo(s=''):
     print(s)
 
+Xpresion.defaultConfiguration()
+
 echo( 'Xpresion.VERSION ' + Xpresion.VERSION + "\n" )
 
 echo(Xpresion('13').debug())

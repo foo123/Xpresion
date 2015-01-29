@@ -3,6 +3,7 @@ var path = require('path'),
     echo = console.log
 ;
 
+Xpresion.defaultConfiguration();
 
 echo( 'Xpresion.VERSION ' + Xpresion.VERSION + "\n" );
 

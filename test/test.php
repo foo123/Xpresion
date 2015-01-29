@@ -5,6 +5,8 @@ function echo_($s='')
     echo $s . PHP_EOL;
 }
 
+Xpresion::defaultConfiguration();
+
 echo_( 'Xpresion.VERSION ' . Xpresion::VERSION . "\n" );
 
 echo_(Xpresion::_('13')->debug());

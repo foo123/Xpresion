@@ -3,7 +3,7 @@
 *
 *   Xpresion
 *   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-*   @version: 0.5
+*   @version: 0.5.1
 *
 *   https://github.com/foo123/Xpresion
 *
@@ -695,7 +695,7 @@ class XpresionFn
 
 class Xpresion
 {
-    const VERSION = "0.5";
+    const VERSION = "0.5.1";
     
     const COMMA       =   ',';
     const LPAREN      =   '(';
@@ -726,6 +726,7 @@ class Xpresion
     const T_FUN       =   131;
     
     public static $_inited = false;
+    public static $_configured = false;
     
     public static $OPERATORS_S = null;
     public static $FUNCTIONS_S = null;
@@ -1371,11 +1372,25 @@ class Xpresion
         return new Xpresion($expr);
     }
     
-    public static function init( )
+    public static function init( $andConfigure=false )
     {
-    if (self::$_inited) return;
+        if (self::$_inited) return;
+        Xpresion::$OPERATORS_S = array();
+        Xpresion::$FUNCTIONS_S = array();
+        Xpresion::$Fn_S = new XpresionFn();
+        Xpresion::$RE_S = array();
+        Xpresion::$BLOCKS_S = array();
+        Xpresion::$Reserved_S = array();
+        XpresionUtils::$dummy = create_function('$Var,$Fn,$Cache', 'return null;');
+        self::$_inited = true;
+        if ( true === $andConfigure ) Xpresion::defaultConfiguration( );
+    }
 
-    Xpresion::$OPERATORS_S = array(
+    public static function defaultConfiguration( )
+    {
+    if (self::$_configured) return;
+
+    Xpresion::defOp(array(
     //------------------------------------------------------------------------------------------------------------------------
     //symbol    input               ,fixity                 ,associativity      ,priority   ,arity  ,output         ,output_type
     //------------------------------------------------------------------------------------------------------------------------
@@ -1501,9 +1516,9 @@ class Xpresion
     ,'or'   =>  Xpresion::Alias( '||' )
     ,'and'  =>  Xpresion::Alias( '&&' )
     ,'not'  =>  Xpresion::Alias( '!' )
-    );
+    ));
 
-    Xpresion::$FUNCTIONS_S = array(
+    Xpresion::defFunc(array(
     //-------------------------------------------------------------------------------------------
     //symbol                    input       ,output             ,output_type    ,priority(default 5)
     //-------------------------------------------------------------------------------------------
@@ -1521,12 +1536,12 @@ class Xpresion
     //                aliases
     //----------------------------------------
      // ...
-    );
+    ));
 
     // function implementations (can also be overriden per instance/evaluation call)
-    Xpresion::$Fn_S = new XpresionFn();
+    //Xpresion::$Fn_S = new XpresionFn();
 
-    Xpresion::$RE_S = array(
+    Xpresion::defRE(array(
     //-----------------------------------------------
     //token                re
     //-------------------------------------------------
@@ -1536,9 +1551,9 @@ class Xpresion
     ,'t_num'        =>  '/^(\\d+(\\.\\d+)?)/'
     ,'t_ident'      =>  '/^([a-zA-Z_][a-zA-Z0-9_]*)\\b/'
     ,'t_var'        =>  '/^\\$([a-zA-Z0-9_][a-zA-Z0-9_.]*)\\b/'
-    );
+    ));
 
-    Xpresion::$BLOCKS_S = array(
+    Xpresion::defBlock(array(
      '\''=> array(
         'type'=> Xpresion::T_STR, 
         'parse'=> array('Xpresion','parse_delimited_block')
@@ -1559,9 +1574,9 @@ class Xpresion
             return rest;
         }
     }*/
-    );
+    ));
 
-    Xpresion::$Reserved_S = array(
+    Xpresion::defReserved(array(
      'null'     => Xpresion::Tok(Xpresion::T_IDE, 'null', 'null')
     ,'false'    => Xpresion::Tok(Xpresion::T_BOL, 'false', 'false')
     ,'true'     => Xpresion::Tok(Xpresion::T_BOL, 'true', 'true')
@@ -1570,11 +1585,9 @@ class Xpresion
     // aliases
     ,'none'     => Xpresion::Alias('null')
     ,'inf'      => Xpresion::Alias('inf')
-    );
+    ));
 
-    XpresionUtils::$dummy = create_function('$Var,$Fn,$Cache', 'return null;');
-    
-    self::$_inited = true;
+    self::$_configured = true;
     }
     
 }

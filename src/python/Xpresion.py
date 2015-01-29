@@ -3,7 +3,7 @@
 #
 #   Xpresion
 #   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-#   @version: 0.5
+#   @version: 0.5.1
 #
 #   https://github.com/foo123/Xpresion
 #
@@ -676,7 +676,7 @@ class Xpresion:
     https://github.com/foo123/Xpresion
     """
     
-    VERSION = "0.5"
+    VERSION = "0.5.1"
     
     COMMA       = COMMA
     LPAREN      = LPAREN
@@ -707,6 +707,7 @@ class Xpresion:
     T_FUN       = T_FUN    
     
     _inited = False
+    _configured = False
     
     Tpl = Tpl
     Node = Node
@@ -830,21 +831,20 @@ class Xpresion:
         return p
     
     def parse(xpr):
-        self = xpr
         get_entry = Alias.get_entry
         reduce = Xpresion.reduce
-        RE = self.RE
-        BLOCK = self.BLOCKS
+        RE = xpr.RE
+        BLOCK = xpr.BLOCKS
         t_var_is_also_ident = 't_var' not in RE
         
         err = 0
         
-        expr = self.source
+        expr = xpr.source
         l = len(expr)
-        self._cnt = 0
-        self._symbol_table = { }
-        self._cache = { }
-        self.variables = { }
+        xpr._cnt = 0
+        xpr._symbol_table = { }
+        xpr._cache = { }
+        xpr.variables = { }
         AST = [ ] 
         OPS = [ ]
         NOPS = [ ]
@@ -875,7 +875,7 @@ class Xpresion:
                     
                     i += len(block_rest)
                     
-                    t = self.t_block( v, block['type'], block_rest )
+                    t = xpr.t_block( v, block['type'], block_rest )
                     if False != t:
                     
                         t_index+=1
@@ -897,7 +897,7 @@ class Xpresion:
             m = RE['t_num'].match(e)
             if m: # number
             
-                t = self.t_liter( m.group( 1 ), T_NUM )
+                t = xpr.t_liter( m.group( 1 ), T_NUM )
                 if False != t:
                 
                     t_index+=1
@@ -910,7 +910,7 @@ class Xpresion:
             m = RE['t_ident'].match(e)
             if m: # ident, reserved, function, operator, etc..
             
-                t = self.t_liter( m.group( 1 ), T_IDE ) # reserved keyword
+                t = xpr.t_liter( m.group( 1 ), T_IDE ) # reserved keyword
                 if False != t:
                 
                     t_index+=1
@@ -918,7 +918,7 @@ class Xpresion:
                     i += len(m.group( 0 ))
                     continue
                 
-                t = self.t_op( m.group( 1 ) ) # (literal) operator
+                t = xpr.t_op( m.group( 1 ) ) # (literal) operator
                 if False != t:
                 
                     t_index+=1
@@ -928,7 +928,7 @@ class Xpresion:
                 
                 if t_var_is_also_ident:
                 
-                    t = self.t_var( m.group( 1 ) ) # variables are also same identifiers
+                    t = xpr.t_var( m.group( 1 ) ) # variables are also same identifiers
                     if False != t:
                     
                         t_index+=1
@@ -945,7 +945,7 @@ class Xpresion:
                 t = False
                 while len(v) > 0: # try to match maximum length op/func
                 
-                    t = self.t_op( v ) # function, (non-literal) operator
+                    t = xpr.t_op( v ) # function, (non-literal) operator
                     if False != t: break
                     v = v[0:-1]
                 
@@ -962,7 +962,7 @@ class Xpresion:
                 m = RE['t_var'].match(e)
                 if m: # variables
                 
-                    t = self.t_var( m.group( 1 ) )
+                    t = xpr.t_var( m.group( 1 ) )
                     if False != t:
                     
                         t_index+=1
@@ -975,7 +975,7 @@ class Xpresion:
             m = RE['t_nonspc'].match(e)
             if m: # other non-space tokens/symbols..
             
-                t = self.t_liter( m.group( 1 ), T_LIT ) # reserved keyword
+                t = xpr.t_liter( m.group( 1 ), T_LIT ) # reserved keyword
                 if False != t:
                 
                     t_index+=1
@@ -983,7 +983,7 @@ class Xpresion:
                     i += len(m.group( 0 ))
                     continue
                 
-                t = self.t_op( m.group( 1 ) ) # function, other (non-literal) operator
+                t = xpr.t_op( m.group( 1 ) ) # function, other (non-literal) operator
                 if False != t:
                 
                     t_index+=1
@@ -991,7 +991,7 @@ class Xpresion:
                     i += len(m.group( 0 ))
                     continue
                 
-                t = self.t_tok( m.group( 1 ) )
+                t = xpr.t_tok( m.group( 1 ) )
                 t_index+=1
                 AST.append( t.node(None, t_index) ) # pass-through ..
                 i += len(m.group( 0 ))
@@ -1010,7 +1010,7 @@ class Xpresion:
             
             try:
                 
-                evaluator = self.compile( AST[0] )
+                evaluator = xpr.compile( AST[0] )
             
             except BaseException as e:
                 
@@ -1021,23 +1021,23 @@ class Xpresion:
         NOPS = None 
         OPS = None 
         AST = None
-        self._symbol_table = None
+        xpr._symbol_table = None
         
         if err:
             evaluator = None
-            self.variables = [ ]
-            self._cnt = 0
-            self._cache = { }
-            self._evaluator_str = ''
-            self._evaluator = self.dummy_evaluator
+            xpr.variables = [ ]
+            xpr._cnt = 0
+            xpr._cache = { }
+            xpr._evaluator_str = ''
+            xpr._evaluator = xpr.dummy_evaluator
             print( 'Xpresion Error: ' + errmsg + ' at ' + expr )
         else:
             # make array
-            self.variables = list( self.variables.keys() )
-            self._evaluator_str = evaluator[0]
-            self._evaluator = evaluator[1]
+            xpr.variables = list( xpr.variables.keys() )
+            xpr._evaluator_str = evaluator[0]
+            xpr._evaluator = evaluator[1]
         
-        return self
+        return xpr
     
     def render(tok, args=None):
         if None==args: args=[]
@@ -1215,10 +1215,21 @@ class Xpresion:
     def t_tok(self, token): 
         return Tok(T_DFT, token, token)
 
-    def init( ):
+    def init( andConfigure=False ):
         if Xpresion._inited: return
+        Xpresion.OPERATORS = {}
+        Xpresion.FUNCTIONS = {}
+        Xpresion.Fn = Fn
+        Xpresion.RE = {}
+        Xpresion.BLOCKS = {}
+        Xpresion.Reserved = {}
+        Xpresion._inited = True
+        if True == andConfigure: Xpresion.defaultConfiguration( )
 
-        Xpresion.OPERATORS = {
+    def defaultConfiguration( ):
+        if Xpresion._configured: return
+
+        Xpresion.defOp({
         #-------------------------------------------------------------------------------------------------
         # symbol     input       ,fixity     ,associativity  ,priority   ,arity  ,output     ,output_type
         #--------------------------------------------------------------------------------------------------
@@ -1345,9 +1356,9 @@ class Xpresion:
         ,'or'    :  Alias( '||' )
         ,'and'   :  Alias( '&&' )
         ,'not'   :  Alias( '!' )
-        }
+        })
 
-        Xpresion.FUNCTIONS = {
+        Xpresion.defFunc({
         #------------------------------------------------------------------------------------
         #symbol              input   ,output             ,output_type    ,priority(default 5)
         #------------------------------------------------------------------------------------
@@ -1365,12 +1376,12 @@ class Xpresion:
         #                aliases
         #----------------------------------------
          # ...
-        }
+        })
 
         # function implementations (can also be overriden per instance/evaluation call)
-        Xpresion.Fn = Fn
+        #Xpresion.Fn = Fn
 
-        Xpresion.RE = {
+        Xpresion.defRE({
         #-----------------------------------------------
         #token                re
         #-------------------------------------------------
@@ -1380,9 +1391,9 @@ class Xpresion:
         ,'t_num'        :  re.compile(r'^(\d+(\.\d+)?)')
         ,'t_ident'      :  re.compile(r'^([a-zA-Z_][a-zA-Z0-9_]*)\b')
         ,'t_var'        :  re.compile(r'^\$([a-zA-Z0-9_][a-zA-Z0-9_.]*)\b')
-        }
+        })
 
-        Xpresion.BLOCKS = {
+        Xpresion.defBlock({
          '\'': {
             'type': T_STR, 
             'parse': Xpresion.parse_delimited_block
@@ -1403,9 +1414,9 @@ class Xpresion:
         #        return rest;
         #    }
         #}
-        }
+        })
 
-        Xpresion.Reserved = {
+        Xpresion.defReserved({
          'null'     : Tok(T_IDE, 'null', 'None')
         ,'false'    : Tok(T_BOL, 'false', 'False')
         ,'true'     : Tok(T_BOL, 'true', 'True')
@@ -1414,9 +1425,9 @@ class Xpresion:
         # aliases
         ,'none'     : Alias('null')
         ,'inf'      : Alias('inf')
-        }
+        })
 
-        Xpresion._inited = True
+        Xpresion._configured = True
     
 Xpresion.init( )
 
