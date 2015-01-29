@@ -408,6 +408,8 @@ class Alias:
             entry = entries[ id ]
             while isinstance(entry, Alias) and (entry.alias in entries):
                 id = entry.alias
+                # circular reference
+                if entry == entries[ id ]: return False
                 entry = entries[ id ]
             return entry
         return False
@@ -612,6 +614,9 @@ class Func(Op):
         
 
 class Fn:
+    INF = float("inf")
+    NAN = float("nan")
+    
     # function implementations (can also be overriden per instance/evaluation call)
     def pow(base, exponent):
         return base ** exponent
@@ -1420,11 +1425,11 @@ class Xpresion:
          'null'     : Tok(T_IDE, 'null', 'None')
         ,'false'    : Tok(T_BOL, 'false', 'False')
         ,'true'     : Tok(T_BOL, 'true', 'True')
-        ,'infinity' : Tok(T_NUM, 'Infinity', 'float("inf")')
-        ,'nan'      : Tok(T_NUM, 'NaN', 'float("nan")')
+        ,'infinity' : Tok(T_NUM, 'Infinity', 'Fn.INF')
+        ,'nan'      : Tok(T_NUM, 'NaN', 'Fn.NAN')
         # aliases
         ,'none'     : Alias('null')
-        ,'inf'      : Alias('inf')
+        ,'inf'      : Alias('infinity')
         })
 
         Xpresion._configured = True

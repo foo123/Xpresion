@@ -247,6 +247,8 @@
             while ( (entry instanceof Alias) && entries[HAS](entry.alias) ) 
             {
                 id = entry.alias;
+                // circular reference
+                if (entry === entries[ id ]) return false;
                 entry = entries[ id ];
             }
             return entry;
@@ -1143,7 +1145,9 @@
         Xpresion[BLOCKS] = {};
         Xpresion.Reserved = {};
         Xpresion.defRuntimeFunc({
-         'clamp'    :   function( v, m, M ){ 
+         'INF'      : Infinity
+        ,'NAN'      : NaN
+        ,'clamp'    :   function( v, m, M ){ 
             if ( m > M ) return v > m ? m : (v < M ? M : v); 
             else return v > M ? M : (v < m ? m : v); 
         }
@@ -1452,11 +1456,11 @@
      'null'     : Tok(T_IDE, 'null', 'null')
     ,'false'    : Tok(T_BOL, 'false', 'false')
     ,'true'     : Tok(T_BOL, 'true', 'true')
-    ,'infinity' : Tok(T_NUM, 'Infinity', 'Infinity')
-    ,'nan'      : Tok(T_NUM, 'NaN', 'NaN')
+    ,'infinity' : Tok(T_NUM, 'Infinity', 'Fn.INF')
+    ,'nan'      : Tok(T_NUM, 'NaN', 'Fn.NAN')
     // aliases
     ,'none'     : Alias('null')
-    ,'inf'      : Alias('inf')
+    ,'inf'      : Alias('infinity')
     });
     
     __configured = true;

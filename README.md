@@ -73,6 +73,8 @@ var path = require('path'),
 ;
 
 
+Xpresion.defaultConfiguration();
+
 echo( 'Xpresion.VERSION ' + Xpresion.VERSION + "\n" );
 
 echo(Xpresion('13').debug());
@@ -513,11 +515,11 @@ Xpresion.defReserved({
  'null'     : Tok(T_IDE, 'null', 'null')
 ,'false'    : Tok(T_BOL, 'false', 'false')
 ,'true'     : Tok(T_BOL, 'true', 'true')
-,'infinity' : Tok(T_NUM, 'Infinity', 'Infinity')
-,'nan'      : Tok(T_NUM, 'NaN', 'NaN')
+,'infinity' : Tok(T_NUM, 'Infinity', 'Fn.INF')
+,'nan'      : Tok(T_NUM, 'NaN', 'Fn.NAN')
 // aliases
 ,'none'     : Alias('null')
-,'inf'      : Alias('inf')
+,'inf'      : Alias('infinity')
 });
 ```
 

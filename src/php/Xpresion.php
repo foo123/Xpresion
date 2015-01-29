@@ -331,6 +331,8 @@ class XpresionAlias
             while (($entry instanceof XpresionAlias) && (isset($entries[$entry->alias])))
             {
                 $id = $entry->alias;
+                // circular reference
+                if ($entry === $entries[ $id ]) return false;
                 $entry = $entries[ $id ];
             }
             return $entry;
@@ -622,6 +624,9 @@ class XpresionFunc extends XpresionOp
 class XpresionFn
 {
     public $Fn = array();
+    
+    public $INF = INF;
+    public $NAN = NAN;
     
     public function __call($fn, $args)
     {
@@ -1580,11 +1585,11 @@ class Xpresion
      'null'     => Xpresion::Tok(Xpresion::T_IDE, 'null', 'null')
     ,'false'    => Xpresion::Tok(Xpresion::T_BOL, 'false', 'false')
     ,'true'     => Xpresion::Tok(Xpresion::T_BOL, 'true', 'true')
-    ,'infinity' => Xpresion::Tok(Xpresion::T_NUM, 'Infinity', 'INF')
-    ,'nan'      => Xpresion::Tok(Xpresion::T_NUM, 'NaN', 'NAN')
+    ,'infinity' => Xpresion::Tok(Xpresion::T_NUM, 'Infinity', '$Fn->INF')
+    ,'nan'      => Xpresion::Tok(Xpresion::T_NUM, 'NaN', '$Fn->NAN')
     // aliases
     ,'none'     => Xpresion::Alias('null')
-    ,'inf'      => Xpresion::Alias('inf')
+    ,'inf'      => Xpresion::Alias('infinity')
     ));
 
     self::$_configured = true;
