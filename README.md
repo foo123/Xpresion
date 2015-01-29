@@ -8,7 +8,7 @@ a simple and flexible eXpression parser engine (with custom functions and variab
 **light-weight (~16kB minified, ~6kB zipped)**
 
 
-**version 0.5** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
+**version 0.5.1** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
 
 
 
@@ -124,7 +124,7 @@ echo(Xpresion('1 ? (2+3) : 2 ? (3+4) : (4+5)').debug());
 
 **output**
 ```text
-Xpresion.VERSION 0.5
+Xpresion.VERSION 0.5.1
 
 Expression: 13
 Variables : []
