@@ -29,10 +29,13 @@ a simple and flexible eXpression parser engine (with custom functions and variab
 
 * [Features](#features)
 * [Examples](#examples)
+* [Live Examples](#live-examples)
 * [API](#api)
 * [Performance](#performance)
 * [Todo](#todo)
 
+
+[![Xpresion Live](https://github.com/foo123/Xpresion/raw/master/xpresion.png)](https://foo123.github.io/examples/xpresion)
 
 
 ####Features 
@@ -60,6 +63,9 @@ However since Xpresion is a parser engine, adding a default configuration, it ca
 10. implementations for Node/JS, PHP, Python (only one class per implementation)
 
 
+####Live Examples
+
+* [Interactive Example](https://foo123.github.io/examples/xpresion)
 
 ####Examples
 
