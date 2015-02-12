@@ -3,7 +3,7 @@
 *
 *   Xpresion
 *   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-*   @version: 0.5.1
+*   @version: 0.5.2
 *
 *   https://github.com/foo123/Xpresion
 *
@@ -52,6 +52,25 @@ class XpresionUtils
         }
         return $flags;
     }
+    
+    public static function is_assoc_array( $a )
+    {
+        // http://stackoverflow.com/a/265144/3591273
+        $k = array_keys( $a ); 
+        return (bool)($k !== array_keys( $k ));
+    }
+    
+    public static function evaluator_factory( $evaluator_str, $Fn, $Cache )
+    {
+        // simulate closure variables in PHP < 5.3
+        // with create_function and var_export
+        $evaluator = create_function('$Var', implode("\n", array(
+            '$Cache = (object)' . var_export((array)$Cache, true) . ';',
+            '$Fn = ' . var_export($Fn, true) . ';',
+            'return ' . $evaluator_str . ';'
+        )));
+        return $evaluator;
+    }
 }
 
             
@@ -91,6 +110,20 @@ class XpresionTpl
         return $a;
     }
 
+    public static function multisplit_re( $tpl, $re ) 
+    {
+        $a = array(); 
+        $i = 0; 
+        while ( preg_match($re, $tpl, $m, PREG_OFFSET_CAPTURE, $i) ) 
+        {
+            $a[] = array(1, substr($tpl, $i, $m[0][1]-$i));
+            $a[] = array(0, isset($m[1]) ? $m[1][0] : $m[0][0]);
+            $i = $m[0][1] + strlen($m[0][0]);
+        }
+        $a[] = array(1, substr($tpl, $i));
+        return $a;
+    }
+    
     public static function arg($key=null, $argslen=null)
     {
         $out = '$args';
@@ -621,12 +654,34 @@ class XpresionFunc extends XpresionOp
     }
 }
 
+/*class XpresionCache
+{
+    public static function __set_state($an_array) // As of PHP 5.1.0
+    {
+        $obj = new XpresionCache();
+        foreach($an_array as $k=>$v)
+        {
+            $obj->{$k} = $v;
+        }
+        return $obj;
+    }
+}*/
+
 class XpresionFn
 {
     public $Fn = array();
     
     public $INF = INF;
     public $NAN = NAN;
+    
+    public static function __set_state($an_array) // As of PHP 5.1.0
+    {
+        $obj = new XpresionFn();
+        $obj->INF = INF;
+        $obj->NAN = NAN;
+        $obj->Fn = $an_array['Fn'];
+        return $obj;
+    }
     
     public function __call($fn, $args)
     {
@@ -692,15 +747,17 @@ class XpresionFn
         return (bool)preg_match($regex, $str, $m);
     }
 
-    public function contains($list, $item)
+    public function contains($o, $i)
     {
-        return (bool)in_array($item, $list);
+        if ( is_string($o) ) return (false !== strpos($o, strval($i)));
+        elseif ( XpresionUtils::is_assoc_array($o) ) return array_key_exists($i, $o);
+        return in_array($i, $o);
     }
 }
 
 class Xpresion
 {
-    const VERSION = "0.5.1";
+    const VERSION = "0.5.2";
     
     const COMMA       =   ',';
     const LPAREN      =   '(';
@@ -1264,7 +1321,7 @@ class Xpresion
     {
         // depth-first traversal and rendering of Abstract Syntax Tree (AST)
         $evaluator_str = XpresionNode::DFT( $AST, array('Xpresion','render'), true );
-        return array($evaluator_str, create_function('$Var,$Fn,$Cache', 'return ' . $evaluator_str . ';'));
+        return array($evaluator_str, XpresionUtils::evaluator_factory($evaluator_str, $this->Fn, $this->_cache));
     }
 
     public function evaluator($evaluator=null)
@@ -1277,11 +1334,10 @@ class Xpresion
         return $this->_evaluator;
     }
 
-    public function evaluate($data=array(), $Fn=null)
+    public function evaluate($data=array())
     {
-        if (!$Fn) $Fn = $this->Fn;
         $e = $this->_evaluator;
-        return $e( $data, $Fn, $this->_cache );
+        return $e( $data );
     }
 
     public function debug($data=null)
@@ -1293,8 +1349,11 @@ class Xpresion
         );
         if (null!==$data)
         {
+            ob_start();
+            var_dump($this->evaluate($data));
+            $output = ob_get_clean();
             $out[] = 'Data      : ' . print_r($data, true);
-            $out[] = 'Result    : ' . print_r($this->evaluate($data), true);
+            $out[] = 'Result    : ' . $output;
         }
         return implode("\n", $out);
     }
@@ -1386,7 +1445,7 @@ class Xpresion
         Xpresion::$RE_S = array();
         Xpresion::$BLOCKS_S = array();
         Xpresion::$Reserved_S = array();
-        XpresionUtils::$dummy = create_function('$Var,$Fn,$Cache', 'return null;');
+        XpresionUtils::$dummy = create_function('$Var', 'return null;');
         self::$_inited = true;
         if ( true === $andConfigure ) Xpresion::defaultConfiguration( );
     }
@@ -1498,10 +1557,7 @@ class Xpresion
                 'matches'           ,Xpresion::INFIX        ,Xpresion::NONE     ,40         ,2      ,'$Fn->match($1,$0)'    ,Xpresion::T_BOL 
                 )
     ,'in'   =>  Xpresion::Op(
-                'in'                ,Xpresion::INFIX        ,Xpresion::NONE     ,40         ,2      ,'in_array($0,$1)'      ,Xpresion::T_BOL 
-                )
-    ,'has'  =>  Xpresion::Op(
-                'has'               ,Xpresion::INFIX        ,Xpresion::NONE     ,40         ,2      ,'in_array($1,$0)'      ,Xpresion::T_BOL 
+                'in'                ,Xpresion::INFIX        ,Xpresion::NONE     ,40         ,2      ,'$Fn->contains($1,$0)'      ,Xpresion::T_BOL 
                 )
     ,'&'    =>  Xpresion::Op(
                 '&'                 ,Xpresion::INFIX        ,Xpresion::LEFT     ,45         ,2      ,'($0&$1)'      ,Xpresion::T_NUM 

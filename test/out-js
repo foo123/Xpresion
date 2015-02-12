@@ -1,4 +1,4 @@
-Xpresion.VERSION 0.5.1
+Xpresion.VERSION 0.5.2
 
 Expression: 13
 Variables : []
@@ -136,12 +136,9 @@ Evaluator : Cache.re_1.test("string")
 Expression: `^regex?`i matches "string" and `^regex?`i matches "string2"
 Variables : []
 Evaluator : (Cache.re_1.test("string")&&Cache.re_1.test("string2"))
-Expression: ["a","b","c"] has $v
-Variables : [v]
-Evaluator : (-1<["a","b","c"].indexOf(Var["v"]))
 Expression: $v in ["a","b","c"]
 Variables : [v]
-Evaluator : (-1<["a","b","c"].indexOf(Var["v"]))
+Evaluator : Fn.contains(["a","b","c"],Var["v"])
 Expression: 1 ? (2+3) : (3+4)
 Variables : []
 Evaluator : (1?(2+3):(3+4))

@@ -1,5 +1,5 @@
 Xpresion Module loaded succesfully
-Xpresion.VERSION 0.5.1
+Xpresion.VERSION 0.5.2
 
 Expression: 13
 Variables : []
@@ -137,12 +137,9 @@ Evaluator : Fn.match("string",Cache["re_1"])
 Expression: `^regex?`i matches "string" and `^regex?`i matches "string2"
 Variables : []
 Evaluator : (Fn.match("string",Cache["re_1"]) and Fn.match("string2",Cache["re_1"]))
-Expression: ["a","b","c"] has $v
-Variables : [v]
-Evaluator : (Var["v"] in ["a","b","c"])
 Expression: $v in ["a","b","c"]
 Variables : [v]
-Evaluator : (Var["v"] in ["a","b","c"])
+Evaluator : Fn.contains(["a","b","c"],Var["v"])
 Expression: 1 ? (2+3) : (3+4)
 Variables : []
 Evaluator : ((2+3) if 1 else (3+4))

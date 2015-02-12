@@ -8,7 +8,7 @@ a simple and flexible eXpression parser engine (with custom functions and variab
 **light-weight (~16kB minified, ~6kB zipped)**
 
 
-**version 0.5.1** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
+**version 0.5.2** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
 
 
 
@@ -123,7 +123,6 @@ echo(Xpresion('(1^2)^3').debug());
 echo(Xpresion('((1^2))^3').debug());
 echo(Xpresion('`^regex?`i matches "string"').debug());
 echo(Xpresion('`^regex?`i matches "string" and `^regex?`i matches "string2"').debug());
-echo(Xpresion('["a","b","c"] has $v').debug());
 echo(Xpresion('$v in ["a","b","c"]').debug());
 echo(Xpresion('1 ? (2+3) : (3+4)').debug());
 echo(Xpresion('1 ? (2+3) : 2 ? (3+4) : (4+5)').debug());
@@ -132,7 +131,7 @@ echo(Xpresion('1 ? (2+3) : 2 ? (3+4) : (4+5)').debug());
 
 **output**
 ```text
-Xpresion.VERSION 0.5.1
+Xpresion.VERSION 0.5.2
 
 Expression: 13
 Variables : []
@@ -270,12 +269,9 @@ Evaluator : Cache.re_1.test("string")
 Expression: `^regex?`i matches "string" and `^regex?`i matches "string2"
 Variables : []
 Evaluator : (Cache.re_1.test("string")&&Cache.re_1.test("string2"))
-Expression: ["a","b","c"] has $v
-Variables : [v]
-Evaluator : (-1<["a","b","c"].indexOf(Var["v"]))
 Expression: $v in ["a","b","c"]
 Variables : [v]
-Evaluator : (-1<["a","b","c"].indexOf(Var["v"]))
+Evaluator : Fn.contains(["a","b","c"],Var["v"])
 Expression: 1 ? (2+3) : (3+4)
 Variables : []
 Evaluator : (1?(2+3):(3+4))
@@ -472,10 +468,7 @@ Xpresion.defOp({
             'matches'   ,INFIX      ,NONE           ,40         ,2      ,'$0.test($1)'  ,T_BOL 
             )
 ,'in'   :   Op(
-            'in'        ,INFIX      ,NONE           ,40         ,2      ,'(-1<$1.indexOf($0))'  ,T_BOL 
-            )
-,'has'  :   Op(
-            'has'       ,INFIX      ,NONE           ,40         ,2      ,'(-1<$0.indexOf($1))'  ,T_BOL 
+            'in'        ,INFIX      ,NONE           ,40         ,2      ,'Fn.contains($1,$0)'  ,T_BOL 
             )
 ,'&'    :   Op(
             '&'         ,INFIX      ,LEFT           ,45         ,2      ,'($0&$1)'      ,T_NUM 
@@ -535,7 +528,7 @@ Xpresion.defReserved({
 
 ####TODO
 
-* implementations for ActionScript
+* implementations for ActionScript, C/C++
 * performance tests
 * documentation, examples, live examples
 

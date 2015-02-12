@@ -2,7 +2,7 @@
 *
 *   Xpresion
 *   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-*   @version: 0.5.1
+*   @version: 0.5.2
 *
 *   https://github.com/foo123/Xpresion
 *
@@ -34,7 +34,7 @@
     
     "use strict";
     
-    var __version__ = "0.5.1",
+    var __version__ = "0.5.2",
     
         PROTO = 'prototype', HAS = 'hasOwnProperty', 
         toJSON = JSON.stringify, Keys = Object.keys, Extend = Object.create,
@@ -142,6 +142,17 @@
                 a = c;
             }
         }
+        return a;
+    };
+    Tpl.multisplit_re = function multisplit_re( tpl, re ) {
+        var a = [ ], i = 0, m;
+        while ( m = re.exec( tpl ) )
+        {
+            a.push([1, tpl.slice(i, re.lastIndex - m[0].length)]);
+            a.push([0, m[1] ? m[1] : m[0]]);
+            i = re.lastIndex;
+        }
+        a.push([1, tpl.slice(i)]);
         return a;
     };
     Tpl.arg = function( key, argslen ) { 
@@ -875,9 +886,10 @@
     };
     Op.Condition = function( f ) {
         return ['function'===typeof f[0] 
-                ? f[0] 
-                : Tpl.compile(Tpl.multisplit(f[0],{'${POS}':0,'${TOKS}':1,'${OPS}':2,'${TOK}':3,'${OP}':4,'${PREV_IS_OP}':5,'${DEDUCED_TYPE}':6,'Xpresion':7}), true),
-                f[1]];
+        ? f[0] 
+        : Tpl.compile(Tpl.multisplit(f[0],{'${POS}':0,'${TOKS}':1,'${OPS}':2,'${TOK}':3,'${OP}':4,'${PREV_IS_OP}':5,'${DEDUCED_TYPE}':6,'Xpresion':7}), true),
+        f[1]
+        ];
     };
     Op[PROTO] = Extend( Tok[PROTO] );
     Op[PROTO].otype = null;
@@ -1036,8 +1048,14 @@
         
         ,compile: function( AST ) {
             // depth-first traversal and rendering of Abstract Syntax Tree (AST)
-            var evaluator_str = Node.DFT( AST, Xpresion.render, true );
-            return [evaluator_str, F('Var,Fn,Cache', '"use strict"; return ' + evaluator_str + ';')];
+            var evaluator_str = Node.DFT( AST, Xpresion.render, true ),
+                evaluator_factory = F('Fn,Cache', [
+                'return function evaluator(Var){',
+                '    "use strict";', 
+                '    return ' + evaluator_str + ';',
+                '};'
+                ].join("\n"));
+            return [evaluator_str, evaluator_factory(this.Fn,this._cache)];
         }
         
         ,evaluator: function( evaluator ) {
@@ -1049,10 +1067,9 @@
             return this._evaluator;
         }
         
-        ,evaluate: function( data, Fn ) {
+        ,evaluate: function( data ) {
             if ( 1 > arguments.length ) data = {};
-            if ( 2 > arguments.length ) Fn = this.Fn;
-            return this._evaluator( data, Fn, this._cache );
+            return this._evaluator( data );
         }
         
         ,debug: function( data ) {
@@ -1184,11 +1201,9 @@
             else return false;
             return true;
         }
-        ,'ary_merge'   :   function(a1, a2){
-            return [].concat(a1,a2);
-        }
+        ,'ary_merge'   :   function(a1, a2){return [].concat(a1,a2);}
         ,'match'  :   function( str, regex ){ return regex.test( str ); }
-        ,'contains':  function( list, item ){ return -1 < list.indexOf( item ); }
+        ,'contains':  function( o, i ){return (o.substr||o.pop) ? (-1 < o.indexOf(i)) : o.hasOwnProperty(i);}
         });
         __inited = true;
         if ( true === andConfigure ) Xpresion.defaultConfiguration( );
@@ -1302,10 +1317,7 @@
                 'matches'   ,INFIX      ,NONE           ,40         ,2      ,'$0.test($1)'  ,T_BOL 
                 )
     ,'in'   :   Op(
-                'in'        ,INFIX      ,NONE           ,40         ,2      ,'(-1<$1.indexOf($0))'  ,T_BOL 
-                )
-    ,'has'  :   Op(
-                'has'       ,INFIX      ,NONE           ,40         ,2      ,'(-1<$0.indexOf($1))'  ,T_BOL 
+                'in'        ,INFIX      ,NONE           ,40         ,2      ,'Fn.contains($1,$0)'  ,T_BOL 
                 )
     ,'&'    :   Op(
                 '&'         ,INFIX      ,LEFT           ,45         ,2      ,'($0&$1)'      ,T_NUM 

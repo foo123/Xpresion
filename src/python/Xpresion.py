@@ -3,7 +3,7 @@
 #
 #   Xpresion
 #   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-#   @version: 0.5.1
+#   @version: 0.5.2
 #
 #   https://github.com/foo123/Xpresion
 #
@@ -131,7 +131,7 @@ def array_splice(arr, index, offset):
 #    for i in stack: out.append(i.__str__())
 #    return (",\n").join(out)
     
-def dummy( Var, Fn, Cache ):
+def dummy( Var ):
     return None
 
 def parse_re_flags(s,i,l):
@@ -220,6 +220,22 @@ class Tpl:
             a = c
         return a
 
+    def multisplit_re( tpl, rex ):
+        a = [ ]
+        i = 0
+        m = rex.search(tpl, i)
+        while m:
+            a.append([1, tpl[i:m.start()]])
+            try:
+                mg = m.group(1)
+            except:
+                mg = m.group(0)
+            a.append([0, mg])
+            i = m.end()
+            m = rex.search(tpl, i)
+        a.append([1, tpl[i:]])
+        return a
+    
     def arg(key=None, argslen=None):
         out = 'args'
         
@@ -493,8 +509,8 @@ class Op(Tok):
 
     def Condition(f):
         return [
-            f[0] if callable(f[0]) else Tpl.compile(Tpl.multisplit(f[0],{'${POS}':0,'${TOKS}':1,'${OPS}':2,'${TOK}':3,'${OP}':4,'${PREV_IS_OP}':5,'${DEDUCED_TYPE}':6,'Xpresion':7}), True)
-            ,f[1]
+        f[0] if callable(f[0]) else Tpl.compile(Tpl.multisplit(f[0],{'${POS}':0,'${TOKS}':1,'${OPS}':2,'${TOK}':3,'${OP}':4,'${PREV_IS_OP}':5,'${DEDUCED_TYPE}':6,'Xpresion':7}), True)
+        ,f[1]
         ]
     
     def __init__(self, input='', fixity=None, associativity=None, priority=1000, arity=0, output='', otype=None, ofixity=None):
@@ -671,8 +687,8 @@ class Fn:
     def match(s, regex): 
         return bool(re.search(regex, s ))
 
-    def contains(l, item): 
-        return bool(item in l)
+    def contains(o, i): 
+        return bool(i in o)
 
 
 class Xpresion:
@@ -681,7 +697,7 @@ class Xpresion:
     https://github.com/foo123/Xpresion
     """
     
-    VERSION = "0.5.1"
+    VERSION = "0.5.2"
     
     COMMA       = COMMA
     LPAREN      = LPAREN
@@ -1142,7 +1158,12 @@ class Xpresion:
     def compile(self, AST):
         # depth-first traversal and rendering of Abstract Syntax Tree (AST)
         evaluator_str = str(Node.DFT( AST, Xpresion.render, True ))
-        return [evaluator_str, createFunction('Var,Fn,Cache', '    return ' + evaluator_str + '')]
+        evaluator_factory = createFunction('Fn,Cache', "\n".join([
+        '    def evaluator(Var):',
+        '        return ' + evaluator_str,
+        '    return evaluator'
+        ]))
+        return [evaluator_str, evaluator_factory(self.Fn,self._cache)]
 
     def evaluator(self, *args):
         if len(args):
@@ -1151,9 +1172,8 @@ class Xpresion:
             return self
         return self._evaluator
 
-    def evaluate(self, data=dict(), Fn=None):
-        if None==Fn: Fn = self.Fn
-        return self._evaluator( data, Fn, self._cache )
+    def evaluate(self, data=dict()):
+        return self._evaluator( data )
 
     def debug(self, data=None):
         out = [
@@ -1338,10 +1358,7 @@ class Xpresion:
                     'matches'   ,INFIX      ,NONE           ,40         ,2      ,'Fn.match($1,$0)'  ,T_BOL 
                     )
         ,'in'   :   Op(
-                    'in'        ,INFIX      ,NONE           ,40         ,2      ,'($0 in $1)'   ,T_BOL 
-                    )
-        ,'has'  :   Op(
-                    'has'       ,INFIX      ,NONE           ,40         ,2      ,'($1 in $0)'   ,T_BOL 
+                    'in'        ,INFIX      ,NONE           ,40         ,2      ,'Fn.contains($1,$0)'   ,T_BOL 
                     )
         ,'&'    :   Op(
                     '&'         ,INFIX      ,LEFT           ,45         ,2      ,'($0&$1)'      ,T_NUM 
