@@ -134,6 +134,15 @@ def array_splice(arr, index, offset):
 def dummy( Var ):
     return None
 
+def evaluator_factory(evaluator_str,Fn,Cache):
+    evaluator_factory = createFunction('Fn,Cache', "\n".join([
+    '    def evaluator(Var):',
+    '        return ' + evaluator_str,
+    '    return evaluator'
+    ]))
+    return evaluator_factory(Fn,Cache)
+
+
 def parse_re_flags(s,i,l):
     flags = ''
     has_i = False
@@ -1158,12 +1167,7 @@ class Xpresion:
     def compile(self, AST):
         # depth-first traversal and rendering of Abstract Syntax Tree (AST)
         evaluator_str = str(Node.DFT( AST, Xpresion.render, True ))
-        evaluator_factory = createFunction('Fn,Cache', "\n".join([
-        '    def evaluator(Var):',
-        '        return ' + evaluator_str,
-        '    return evaluator'
-        ]))
-        return [evaluator_str, evaluator_factory(self.Fn,self._cache)]
+        return [evaluator_str, evaluator_factory(evaluator_str,self.Fn,self._cache)]
 
     def evaluator(self, *args):
         if len(args):

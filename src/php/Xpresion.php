@@ -62,13 +62,27 @@ class XpresionUtils
     
     public static function evaluator_factory( $evaluator_str, $Fn, $Cache )
     {
-        // simulate closure variables in PHP < 5.3
-        // with create_function and var_export
-        $evaluator = create_function('$Var', implode("\n", array(
-            '$Cache = (object)' . var_export((array)$Cache, true) . ';',
-            '$Fn = ' . var_export($Fn, true) . ';',
-            'return ' . $evaluator_str . ';'
-        )));
+        if ( version_compare(phpversion(), '5.3.0', '>=') )
+        {
+            // use actual php anonynous function/closure
+            $evaluator_factory = create_function('$Fn,$Cache', implode("\n", array(
+                '$evaluator = function($Var) use($Fn,$Cache) {',
+                '    return ' . $evaluator_str . ';',
+                '};',
+                'return $evaluator;'
+            )));
+            $evaluator = $evaluator_factory($Fn,$Cache);
+        }
+        else
+        {
+            // simulate closure variables in PHP < 5.3
+            // with create_function and var_export
+            $evaluator = create_function('$Var', implode("\n", array(
+                '$Cache = (object)' . var_export((array)$Cache, true) . ';',
+                '$Fn = ' . var_export($Fn, true) . ';',
+                'return ' . $evaluator_str . ';'
+            )));
+        }
         return $evaluator;
     }
 }
@@ -1349,9 +1363,10 @@ class Xpresion
         );
         if (null!==$data)
         {
-            ob_start();
-            var_dump($this->evaluate($data));
-            $output = ob_get_clean();
+            //ob_start();
+            //var_dump($this->evaluate($data));
+            //$output = ob_get_clean();
+            $output = var_export($this->evaluate($data), true);
             $out[] = 'Data      : ' . print_r($data, true);
             $out[] = 'Result    : ' . $output;
         }

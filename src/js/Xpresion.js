@@ -47,6 +47,16 @@
         
         dummy = function( /*Var, Fn, Cache*/ ){ return null; },
         
+        evaluator_factory = function(evaluator_str,Fn,Cache) {
+            var evaluator = F('Fn,Cache', [
+            'return function evaluator(Var){',
+            '    "use strict";', 
+            '    return ' + evaluator_str + ';',
+            '};'
+            ].join("\n"))(Fn,Cache);
+            return evaluator;
+        },
+        
         Tpl, Node, Alias, Tok, Op, Func, Xpresion,
         BLOCKS = 'BLOCKS', OPS = 'OPERATORS', FUNCS = 'FUNCTIONS',
         __inited = false, __configured = false
@@ -1048,14 +1058,8 @@
         
         ,compile: function( AST ) {
             // depth-first traversal and rendering of Abstract Syntax Tree (AST)
-            var evaluator_str = Node.DFT( AST, Xpresion.render, true ),
-                evaluator_factory = F('Fn,Cache', [
-                'return function evaluator(Var){',
-                '    "use strict";', 
-                '    return ' + evaluator_str + ';',
-                '};'
-                ].join("\n"));
-            return [evaluator_str, evaluator_factory(this.Fn,this._cache)];
+            var evaluator_str = Node.DFT( AST, Xpresion.render, true );
+            return [evaluator_str, evaluator_factory(evaluator_str,this.Fn,this._cache)];
         }
         
         ,evaluator: function( evaluator ) {
