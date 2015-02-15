@@ -3,7 +3,7 @@
 #
 #   Xpresion
 #   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-#   @version: 0.5.2
+#   @version: 0.6
 #
 #   https://github.com/foo123/Xpresion
 #
@@ -374,6 +374,7 @@ class Node:
         self.children = children
         self.pos = pos
         self.op_parts = None
+        self.op_def = None
         self.op_index = None
     
     def __del__(self):
@@ -389,19 +390,29 @@ class Node:
         self.pos = None
         self.node = None
         self.op_parts = None
+        self.op_def = None
         self.op_index = None
         self.children = None
         return self
     
     
-    def op_next(self, op):
+    def op_next(self, op, pos, op_queue, token_queue):
         next_index = -1
         try:
             next_index = self.op_parts.index( op.input )
         except:
             next_index = -1
         is_next = (0 == next_index)
-        if is_next: self.op_parts.pop(0)
+        if is_next: 
+            if 0 == self.op_def[0][0]:
+                if not Op.match_args(self.op_def[0][2], pos-1, op_queue, token_queue ):
+                    is_next = False
+                else:
+                    self.op_def.pop(0)
+        
+        if is_next: 
+            self.op_def.pop(0)
+            self.op_parts.pop(0)
         return is_next
     
     def op_complete(self):
@@ -522,14 +533,50 @@ class Op(Tok):
         ,f[1]
         ]
     
-    def __init__(self, input='', fixity=None, associativity=None, priority=1000, arity=0, output='', otype=None, ofixity=None):
-        # n-ary/multi-part operator
-        if isinstance(input,(list,tuple)): 
-            self.parts = list(input)
-            self.type = T_N_OP
+    def parse_definition(op_def):
+        parts = []
+        op = []
+        arity = 0
+        if isinstance(op_def, str):
+            # assume infix, arity = 2;
+            op_def = [1,op_def,1]
         else:
-            self.parts = [input]
-            self.type = T_OP
+            op_def = list(op_def)
+        for i in range(len(op_def)):
+            if isinstance(op_def[i], str):
+                parts.append(op_def[i])
+                op.append([1, i, op_def[i]])
+            else:
+                op.append([0, i, op_def[i]])
+                arity += op_def[i]
+        
+        if 1 == len(parts) and 1 == len(op):
+            op = [[0, 0, 1], [1, 1, parts[0]], [0, 2, 1]]
+            arity = 2
+            type = T_OP
+        else:
+            type = T_N_OP if len(parts) > 1 else T_OP
+        return [type, op, parts, arity]
+    
+    def match_args(expected_args, args_pos, op_queue, token_queue):
+        tl = len(token_queue)
+        t = tl-1
+        num_args = 0
+        INF = -10
+        while num_args < expected_args or t >= 0:
+            p2 = INF if t < 0 else token_queue[t].pos
+            if args_pos == p2:
+                num_args+=1
+                args_pos-=1
+                t-=1
+            else: break
+        return (num_args >= expected_args)
+    
+    def __init__(self, input='', fixity=None, associativity=None, priority=1000, output='', otype=None, ofixity=None):
+        opdef = Op.parse_definition( input )
+        self.type = opdef[0]
+        self.opdef = opdef[1]
+        self.parts = opdef[2]
         
         if not isinstance(output, Tpl): output = Tpl(output)
         
@@ -538,7 +585,8 @@ class Op(Tok):
         self.fixity = fixity if None!=fixity else PREFIX
         self.associativity = associativity if None!=associativity else DEFAULT
         self.priority = priority
-        self.arity = arity
+        self.arity = opdef[3]
+        #self.arity = arity
         self.otype = otype if None!=otype else T_DFT
         self.ofixity = ofixity if None!=ofixity else self.fixity
         self.parenthesize = False
@@ -553,6 +601,7 @@ class Op(Tok):
         self.otype = None
         self.ofixity = None
         self.parts = None
+        self.opdef = None
         self.morphes = None
         return self
     
@@ -616,22 +665,32 @@ class Op(Tok):
             out = str(op) + lparen + comma.join(args) + rparen
         return Tok(output_type, out, out)
     
-    def node(self, args=None, pos=0, op_index=0):
+    def validate(self, pos, op_queue, token_queue ):
+        valid = True
+        msg = ''
+        if 0 == self.opdef[0][0]: # expecting argument(s)
+            if not Op.match_args(self.opdef[0][2], pos-1, op_queue, token_queue ):
+                valid = False
+                msg = 'Operator "' + str(self.input) + '" expecting ' + str(self.opdef[0][2]) + ' prior argument(s)'
+        return [valid, msg]
+    
+    def node(self, args=None, pos=0, op_queue=None, token_queue=None):
         otype = self.otype
         if None==args: args = []
         if self.revert: args = args[::-1]
         if (T_DUM == otype) and len(args): otype = args[ 0 ].type
         elif len(args): args[0].type = otype
         n = Node(otype, self, args, pos)
-        if T_N_OP == self.type:
+        if T_N_OP == self.type and None != op_queue:
             n.op_parts = self.parts[1:]
-            n.op_index = op_index
+            n.op_def = self.opdef[2:] if 0 == self.opdef[0][0] else self.opdef[1:]
+            n.op_index = len(op_queue)+1
         return n
 
 class Func(Op):
     
     def __init__(self, input='', output='', otype=None, priority=5, associativity=None, fixity=None):
-        super(Func, self).__init__(input, PREFIX, associativity if None!= associativity else RIGHT, priority, 1, output, otype, fixity if None!=fixity else PREFIX)
+        super(Func, self).__init__([input, 1] if isinstance(input, str) else input, PREFIX, associativity if None!= associativity else RIGHT, priority, output, otype, fixity if None!=fixity else PREFIX)
         self.type = T_FUN
     
     def __del__(self):
@@ -706,7 +765,7 @@ class Xpresion:
     https://github.com/foo123/Xpresion
     """
     
-    VERSION = "0.5.2"
+    VERSION = "0.6"
     
     COMMA       = COMMA
     LPAREN      = LPAREN
@@ -746,7 +805,7 @@ class Xpresion:
     Op = Op
     Func = Func
         
-    def reduce(token_queue, op_queue, nop_queue, current_op=None, pos=0):
+    def reduce(token_queue, op_queue, nop_queue, current_op=None, pos=0, err=None):
         nop = None 
         nop_index = 0
         #
@@ -778,7 +837,13 @@ class Xpresion:
             # n-ary/multi-part operator, initial part
             # push to nop_queue/op_queue
             if T_N_OP == opc.type:
-                n = opc.node(None, pos, len(op_queue)+1)
+                validation = opc.validate(pos, op_queue, token_queue)
+                if not validation[0]:
+                    # operator is not valid in current state
+                    err['err'] = True
+                    err['msg'] = validation[1]
+                    return False
+                n = opc.node(None, pos, op_queue, token_queue)
                 nop_queue.insert( 0, n )
                 op_queue.insert( 0, n )
             
@@ -789,7 +854,7 @@ class Xpresion:
                 
                 # n-ary/multi-part operator, further parts
                 # combine one-by-one, until n-ary operator is complete
-                if nop and nop.op_next( opc ):
+                if nop and nop.op_next( opc, pos, op_queue, token_queue ):
                 
                     while len(op_queue) > nop_index:
                         entry = op_queue.pop(0) 
@@ -806,6 +871,13 @@ class Xpresion:
                         nop_index = nop_queue[0].op_index if len(nop_queue) else 0
                     else:
                         return
+                else:
+                    validation = opc.validate(pos, op_queue, token_queue)
+                    if not validation[0]:
+                        # operator is not valid in current state
+                        err['err'] = True
+                        err['msg'] = validation[1]
+                        return False
                 
                 
                 fixity = opc.fixity
@@ -868,7 +940,8 @@ class Xpresion:
         t_var_is_also_ident = 't_var' not in RE
         
         err = 0
-        
+        errmsg = ''
+        errors = {'err': False, 'msg': ''}
         expr = xpr.source
         l = len(expr)
         xpr._cnt = 0
@@ -952,7 +1025,11 @@ class Xpresion:
                 if False != t:
                 
                     t_index+=1
-                    reduce( AST, OPS, NOPS, t, t_index )
+                    reduce( AST, OPS, NOPS, t, t_index, errors )
+                    if errors['err']:
+                        err = 1
+                        errmsg = errors['msg']
+                        break
                     i += len(m.group( 0 ))
                     continue
                 
@@ -982,7 +1059,11 @@ class Xpresion:
                 if False != t:
                 
                     t_index+=1
-                    reduce( AST, OPS, NOPS, t, t_index )
+                    reduce( AST, OPS, NOPS, t, t_index, errors )
+                    if errors['err']:
+                        err = 1
+                        errmsg = errors['msg']
+                        break
                     i += len(v)
                     continue
                 
@@ -1017,7 +1098,11 @@ class Xpresion:
                 if False != t:
                 
                     t_index+=1
-                    reduce( AST, OPS, NOPS, t, t_index )
+                    reduce( AST, OPS, NOPS, t, t_index, errors )
+                    if errors['err']:
+                        err = 1
+                        errmsg = errors['msg']
+                        break
                     i += len(m.group( 0 ))
                     continue
                 
@@ -1029,23 +1114,23 @@ class Xpresion:
             
         
         
-        err = 0
-        reduce( AST, OPS, NOPS )
-        
-        if (1 != len(AST)) or (len(OPS) > 0):
-            err = 1
-            errmsg = 'Parse Error, Mismatched Parentheses or Operators'
-        
         if not err:
+            reduce( AST, OPS, NOPS )
             
-            try:
-                
-                evaluator = xpr.compile( AST[0] )
-            
-            except BaseException as e:
-                
+            if (1 != len(AST)) or (len(OPS) > 0):
                 err = 1
-                errmsg = 'Compilation Error, ' + str(e) + ''
+                errmsg = 'Parse Error, Mismatched Parentheses or Operators'
+            
+            if not err:
+                
+                try:
+                    
+                    evaluator = xpr.compile( AST[0] )
+                
+                except BaseException as e:
+                    
+                    err = 1
+                    errmsg = 'Compilation Error, ' + str(e) + ''
             
         
         NOPS = None 
@@ -1060,7 +1145,7 @@ class Xpresion:
             xpr._cache = { }
             xpr._evaluator_str = ''
             xpr._evaluator = xpr.dummy_evaluator
-            print( 'Xpresion Error: ' + errmsg + ' at ' + expr )
+            print( 'Xpresion Error: ' + errmsg + ' at ' + expr + "\n")
         else:
             # make array
             xpr.variables = list( xpr.variables.keys() )
@@ -1259,122 +1344,122 @@ class Xpresion:
         if Xpresion._configured: return
 
         Xpresion.defOp({
-        #-------------------------------------------------------------------------------------------------
-        # symbol     input       ,fixity     ,associativity  ,priority   ,arity  ,output     ,output_type
-        #--------------------------------------------------------------------------------------------------
+        #----------------------------------------------------------------------------------------------
+        # symbol     input       ,fixity     ,associativity  ,priority   ,output     ,output_type
+        #----------------------------------------------------------------------------------------------
                     # bra-kets as n-ary operators
          '('    :   Op(
-                    ['(',')']   ,POSTFIX    ,RIGHT          ,1          ,1      ,'$0'       ,T_DUM 
+                    ['(',1,')'] ,POSTFIX    ,RIGHT          ,1          ,'$0'       ,T_DUM 
                     )
-        ,')'    :   Op(')')
+        ,')'    :   Op([1,')'])
         ,'['    :   Op(
-                    ['[',']']   ,POSTFIX    ,RIGHT          ,2          ,1      ,'[$0]'     ,T_ARY 
+                    ['[',1,']'] ,POSTFIX    ,RIGHT          ,2          ,'[$0]'     ,T_ARY 
                     )
-        ,']'    :   Op(']')
+        ,']'    :   Op([1,']'])
         ,','    :   Op(
-                    ','         ,INFIX      ,LEFT           ,3          ,2      ,'$0,$1'    ,T_DFT 
+                    [1,',',1]   ,INFIX      ,LEFT           ,3          ,'$0,$1'    ,T_DFT 
                     )
                     # n-ary (ternary) if-then-else operator
         ,'?'    :   Op(
-                    ['?',':']   ,INFIX      ,RIGHT          ,100        ,3      ,'($1 if $0 else $2)'   ,T_BOL 
+                    [1,'?',1,':',1] ,INFIX  ,RIGHT          ,100        ,'($1 if $0 else $2)'   ,T_BOL 
                     )
-        ,':'    :   Op(':')
+        ,':'    :   Op([1,':',1])
         
         ,'!'    :   Op(
-                    '!'         ,PREFIX     ,RIGHT          ,10         ,1      ,'(not $0)' ,T_BOL 
+                    ['!',1]     ,PREFIX     ,RIGHT          ,10         ,'(not $0)' ,T_BOL 
                     )
         ,'~'    :   Op(
-                    '~'         ,PREFIX     ,RIGHT          ,10         ,1      ,'~$0'      ,T_NUM 
+                    ['~',1]     ,PREFIX     ,RIGHT          ,10         ,'~$0'      ,T_NUM 
                     )
         ,'^'    :   Op(
-                    '^'         ,INFIX      ,RIGHT          ,11         ,2      ,'($0**$1)' ,T_NUM 
+                    [1,'^',1]   ,INFIX      ,RIGHT          ,11         ,'($0**$1)' ,T_NUM 
                     )
         ,'*'    :   Op(
-                    '*'         ,INFIX      ,LEFT           ,20         ,2      ,'($0*$1)'  ,T_NUM 
+                    [1,'*',1]   ,INFIX      ,LEFT           ,20         ,'($0*$1)'  ,T_NUM 
                     ) 
         ,'/'    :   Op(
-                    '/'         ,INFIX      ,LEFT           ,20         ,2      ,'($0/$1)'  ,T_NUM 
+                    [1,'/',1]   ,INFIX      ,LEFT           ,20         ,'($0/$1)'  ,T_NUM 
                     )
         ,'%'    :   Op(
-                    '%'         ,INFIX      ,LEFT           ,20         ,2      ,'($0%$1)'  ,T_NUM 
+                    [1,'%',1]   ,INFIX      ,LEFT           ,20         ,'($0%$1)'  ,T_NUM 
                     )
                     # addition/concatenation/unary plus as polymorphic operators
         ,'+'    :   Op().Polymorphic([
                     # array concatenation
                     ["${TOK} and (not ${PREV_IS_OP}) and (${DEDUCED_TYPE}==Xpresion.T_ARY)", Op(
-                    '+'         ,INFIX      ,LEFT           ,25         ,2      ,'Fn.ary_merge($0,$1)'  ,T_ARY 
+                    [1,'+',1]   ,INFIX      ,LEFT           ,25         ,'Fn.ary_merge($0,$1)'  ,T_ARY 
                     )]
                     # string concatenation
                     ,["${TOK} and (not ${PREV_IS_OP}) and (${DEDUCED_TYPE}==Xpresion.T_STR)", Op(
-                    '+'         ,INFIX      ,LEFT           ,25         ,2      ,'($0+str($1))' ,T_STR 
+                    [1,'+',1]   ,INFIX      ,LEFT           ,25         ,'($0+str($1))' ,T_STR 
                     )]
                     # numeric addition
                     ,["${TOK} and not ${PREV_IS_OP}", Op(
-                    '+'         ,INFIX      ,LEFT           ,25         ,2      ,'($0+$1)'  ,T_NUM 
+                    [1,'+',1]   ,INFIX      ,LEFT           ,25         ,'($0+$1)'  ,T_NUM 
                     )]
                     # unary plus
                     ,["(not ${TOK}) or ${PREV_IS_OP}", Op(
-                    '+'         ,PREFIX     ,RIGHT          ,4          ,1      ,'$0'       ,T_NUM 
+                    ['+',1]     ,PREFIX     ,RIGHT          ,4          ,'$0'       ,T_NUM 
                     )]
                     ])
         ,'-'    :   Op().Polymorphic([
                     # numeric subtraction
                     ["${TOK} and not ${PREV_IS_OP}", Op(
-                    '-'         ,INFIX      ,LEFT           ,25         ,2      ,'($0-$1)'  ,T_NUM 
+                    [1,'-',1]   ,INFIX      ,LEFT           ,25         ,'($0-$1)'  ,T_NUM 
                     )]
                     # unary negation
                     ,["(not ${TOK}) or ${PREV_IS_OP}", Op(
-                    '-'         ,PREFIX     ,RIGHT          ,4          ,1      ,'(-$0)'        ,T_NUM 
+                    ['-',1]     ,PREFIX     ,RIGHT          ,4          ,'(-$0)'        ,T_NUM 
                     )]
                     ])
         ,'>>'   :   Op(
-                    '>>'        ,INFIX      ,LEFT           ,30         ,2      ,'($0>>$1)'     ,T_NUM 
+                    [1,'>>',1]  ,INFIX      ,LEFT           ,30         ,'($0>>$1)'     ,T_NUM 
                     )
         ,'<<'   :   Op(
-                    '<<'        ,INFIX      ,LEFT           ,30         ,2      ,'($0<<$1)'     ,T_NUM 
+                    [1,'<<',1]  ,INFIX      ,LEFT           ,30         ,'($0<<$1)'     ,T_NUM 
                     )
         ,'>'    :   Op(
-                    '>'         ,INFIX      ,LEFT           ,35         ,2      ,'($0>$1)'      ,T_BOL 
+                    [1,'>',1]   ,INFIX      ,LEFT           ,35         ,'($0>$1)'      ,T_BOL 
                     )
         ,'<'    :   Op(
-                    '<'         ,INFIX      ,LEFT           ,35         ,2      ,'($0<$1)'      ,T_BOL 
+                    [1,'<',1]   ,INFIX      ,LEFT           ,35         ,'($0<$1)'      ,T_BOL 
                     )
         ,'>='   :   Op(
-                    '>='        ,INFIX      ,LEFT           ,35         ,2      ,'($0>=$1)'     ,T_BOL 
+                    [1,'>=',1]  ,INFIX      ,LEFT           ,35         ,'($0>=$1)'     ,T_BOL 
                     )
         ,'<='   :   Op(
-                    '<='        ,INFIX      ,LEFT           ,35         ,2      ,'($0<=$1)'     ,T_BOL 
+                    [1,'<=',1]  ,INFIX      ,LEFT           ,35         ,'($0<=$1)'     ,T_BOL 
                     )
         ,'=='   :   Op().Polymorphic([
                     # array equivalence
                     ["${DEDUCED_TYPE}==Xpresion.T_ARY", Op(
-                    '=='        ,INFIX      ,LEFT           ,40         ,2      ,'Fn.ary_eq($0,$1)' ,T_BOL 
+                    [1,'==',1]  ,INFIX      ,LEFT           ,40         ,'Fn.ary_eq($0,$1)' ,T_BOL 
                     )]
                     # default equivalence
                     ,["True", Op(
-                    '=='        ,INFIX      ,LEFT           ,40         ,2      ,'($0==$1)'     ,T_BOL 
+                    [1,'==',1]  ,INFIX      ,LEFT           ,40         ,'($0==$1)'     ,T_BOL 
                     )]
                     ])
         ,'!='   :   Op(
-                    '!='        ,INFIX      ,LEFT           ,40         ,2      ,'($0!=$1)'     ,T_BOL 
+                    [1,'!=',1]  ,INFIX      ,LEFT           ,40         ,'($0!=$1)'     ,T_BOL 
                     )
         ,'matches': Op(
-                    'matches'   ,INFIX      ,NONE           ,40         ,2      ,'Fn.match($1,$0)'  ,T_BOL 
+                    [1,'matches',1] ,INFIX  ,NONE           ,40         ,'Fn.match($1,$0)'  ,T_BOL 
                     )
         ,'in'   :   Op(
-                    'in'        ,INFIX      ,NONE           ,40         ,2      ,'Fn.contains($1,$0)'   ,T_BOL 
+                    [1,'in',1]  ,INFIX      ,NONE           ,40         ,'Fn.contains($1,$0)'   ,T_BOL 
                     )
         ,'&'    :   Op(
-                    '&'         ,INFIX      ,LEFT           ,45         ,2      ,'($0&$1)'      ,T_NUM 
+                    [1,'&',1]   ,INFIX      ,LEFT           ,45         ,'($0&$1)'      ,T_NUM 
                     )
         ,'|'    :   Op(
-                    '|'         ,INFIX      ,LEFT           ,46         ,2      ,'($0|$1)'      ,T_NUM 
+                    [1,'|',1]   ,INFIX      ,LEFT           ,46         ,'($0|$1)'      ,T_NUM 
                     )
         ,'&&'   :   Op(
-                    '&&'        ,INFIX      ,LEFT           ,47         ,2      ,'($0 and $1)'  ,T_BOL 
+                    [1,'&&',1]  ,INFIX      ,LEFT           ,47         ,'($0 and $1)'  ,T_BOL 
                     )
         ,'||'   :   Op(
-                    '||'        ,INFIX      ,LEFT           ,48         ,2      ,'($0 or $1)'   ,T_BOL 
+                    [1,'||',1]  ,INFIX      ,LEFT           ,48         ,'($0 or $1)'   ,T_BOL 
                     )
         #------------------------------------------
         #                aliases

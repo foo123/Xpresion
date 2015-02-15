@@ -3,7 +3,7 @@
 *
 *   Xpresion
 *   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-*   @version: 0.5.2
+*   @version: 0.6
 *
 *   https://github.com/foo123/Xpresion
 *
@@ -297,6 +297,7 @@ class XpresionNode
     public $pos = null;
     public $node = null;
     public $op_parts = null;
+    public $op_def = null;
     public $op_index = null;
     public $children = null;
     
@@ -307,6 +308,7 @@ class XpresionNode
         $this->children = $children;
         $this->pos = $pos;
         $this->op_parts = null;
+        $this->op_def = null;
         $this->op_index = null;
     }
     
@@ -328,16 +330,35 @@ class XpresionNode
         $this->pos = null;
         $this->node = null;
         $this->op_parts = null;
+        $this->op_def = null;
         $this->op_index = null;
         $this->children = null;
         return $this;
     }
     
-    public function op_next($op)
+    public function op_next($op, $pos, &$op_queue, &$token_queue)
     {
         $next_index = array_search($op->input, $this->op_parts);
         $is_next = (bool)(0 === $next_index);
-        if ($is_next) array_shift($this->op_parts);
+        if ( $is_next )
+        {
+            if ( 0 === $this->op_def[0][0] )
+            {
+                if ( !XpresionOp::match_args($this->op_def[0][2], $pos-1, $op_queue, $token_queue ) )
+                {
+                    $is_next = false;
+                }
+                else
+                {
+                    array_shift($this->op_def);
+                }
+            }
+        }
+        if ( $is_next ) 
+        {
+            array_shift($this->op_def);
+            array_shift($this->op_parts);
+        }
         return $is_next;
     }
     
@@ -507,24 +528,78 @@ class XpresionOp extends XpresionTok
         );
     }
     
-    public $otype = null;
-    public $ofixity = null;
-    public $parts = null;
-    public $morphes = null;
-    
-    public function __construct($input='', $fixity=null, $associativity=null, $priority=1000, $arity=0, $output='', $otype=null, $ofixity=null)
+    public static function parse_definition( $op_def ) 
     {
-        # n-ary/multi-part operator
-        if (is_array($input))
+        $parts = array(); 
+        $op = array(); 
+        $arity = 0;
+        if ( is_string($op_def) )
         {
-            $this->parts = $input;
-            $this->type = Xpresion::T_N_OP;
+            // assume infix, arity = 2;
+            $op_def = array(1,$op_def,1);
         }
         else
         {
-            $this->parts = array($input);
-            $this->type = Xpresion::T_OP;
+            $op_def = (array)$op_def;
         }
+        $l = count($op_def);
+        for ($i=0; $i<$l; $i++)
+        {
+            if ( is_string( $op_def[$i] ) )
+            {
+                $parts[] = $op_def[$i];
+                $op[] = array(1, $i, $op_def[$i]);
+            }
+            else
+            {
+                $op[] = array(0, $i, $op_def[$i]);
+                $arity += $op_def[$i];
+            }
+        }
+        if ( 1 === count($parts) && 1 === count($op) )
+        {
+            $op = array(array(0, 0, 1), array(1, 1, $parts[0]), array(0, 2, 1));
+            $arity = 2; $type = Xpresion::T_OP;
+        }
+        else
+        {
+            $type = count($parts) > 1 ? Xpresion::T_N_OP : Xpresion::T_OP;
+        }
+        return array($type, $op, $parts, $arity);
+    }
+    
+    public static function match_args( $expected_args, $args_pos, &$op_queue, &$token_queue ) 
+    {
+        $tl = count($token_queue);
+        $t = $tl-1; 
+        $num_args = 0;
+        $INF = -10;
+        while ($num_args < $expected_args || $t >= 0 )
+        {
+            $p2 = $t >= 0 ? $token_queue[$t]->pos : $INF;
+            if ( $args_pos === $p2 ) 
+            {
+                $num_args++;
+                $args_pos--;
+                $t--;
+            }
+            else break;
+        }
+        return $num_args >= $expected_args;
+    }
+    
+    public $otype = null;
+    public $ofixity = null;
+    public $opdef = null;
+    public $parts = null;
+    public $morphes = null;
+    
+    public function __construct($input='', $fixity=null, $associativity=null, $priority=1000, /*$arity=0,*/ $output='', $otype=null, $ofixity=null)
+    {
+        $opdef = self::parse_definition( $input );
+        $this->type = $opdef[0];
+        $this->opdef = $opdef[1];
+        $this->parts = $opdef[2];
         
         if ( !($output instanceof XpresionTpl) ) $output = new XpresionTpl($output);
         
@@ -533,7 +608,8 @@ class XpresionOp extends XpresionTok
         $this->fixity = null !== $fixity ? $fixity : Xpresion::PREFIX;
         $this->associativity = null !== $associativity ? $associativity : Xpresion::DEFAUL;
         $this->priority = $priority;
-        $this->arity = $arity;
+        $this->arity = $opdef[3];
+        //$this->arity = $arity;
         $this->otype = null !== $otype ? $otype : Xpresion::T_DFT;
         $this->ofixity = null !== $ofixity ? $ofixity : $this->fixity;
         $this->parenthesize = false;
@@ -551,6 +627,7 @@ class XpresionOp extends XpresionTok
         parent::dispose();
         $this->otype = null;
         $this->ofixity = null;
+        $this->opdef = null;
         $this->parts = null;
         $this->morphes = null;
         return $this;
@@ -628,7 +705,21 @@ class XpresionOp extends XpresionTok
         return new XpresionTok($output_type, $out, $out);
     }
     
-    public function node($args=null, $pos=0, $op_index=0)
+    public function validate($pos, &$op_queue, &$token_queue) 
+    {
+        $valid = true; $msg = '';
+        if ( 0 === $this->opdef[0][0] ) // expecting argument(s)
+        {
+            if ( !self::match_args($this->opdef[0][2], $pos-1, $op_queue, $token_queue ) )
+            {
+                $valid = false;
+                $msg = 'Operator "' . $this->input . '" expecting ' . $this->opdef[0][2] . ' prior argument(s)';
+            }
+        }
+        return array($valid, $msg);
+    }
+    
+    public function node($args=null, $pos=0, $op_queue=null, $token_queue=null)
     {
         $otype = $this->otype;
         if (null===$args) $args = array();
@@ -636,10 +727,11 @@ class XpresionOp extends XpresionTok
         if ((Xpresion::T_DUM === $otype) && !empty($args)) $otype = $args[ 0 ]->type;
         elseif (!empty($args)) $args[0]->type = $otype;
         $n = new XpresionNode($otype, $this, $args, $pos);
-        if (Xpresion::T_N_OP === $this->type)
+        if (Xpresion::T_N_OP === $this->type && null !== $op_queue)
         {
             $n->op_parts = array_slice($this->parts, 1);
-            $n->op_index = $op_index;
+            $n->op_def = array_slice($this->opdef, 0 === $this->opdef[0][0] ? 2 : 1);
+            $n->op_index = count($op_queue)+1;
         }
         return $n;
     }
@@ -650,11 +742,11 @@ class XpresionFunc extends XpresionOp
     public function __construct($input='', $output='', $otype=null, $priority=5, $associativity=null, $fixity=null)
     {
         parent::__construct(
-            $input, 
+            is_string($input) ? array($input, 1) : $input, 
             Xpresion::PREFIX, 
             null !== $associativity ? $associativity : Xpresion::RIGHT, 
             $priority, 
-            1, 
+            /*1, */
             $output, 
             $otype, 
             null !== $fixity ? $fixity : Xpresion::PREFIX
@@ -771,7 +863,7 @@ class XpresionFn
 
 class Xpresion
 {
-    const VERSION = "0.5.2";
+    const VERSION = "0.6";
     
     const COMMA       =   ',';
     const LPAREN      =   '(';
@@ -827,16 +919,16 @@ class Xpresion
     {
         return new XpresionTok($type, $input, $output, $value);
     }
-    public static function Op($input='', $fixity=null, $associativity=null, $priority=1000, $arity=0, $output='', $otype=null, $ofixity=null)
+    public static function Op($input='', $fixity=null, $associativity=null, $priority=1000, /*$arity=0,*/ $output='', $otype=null, $ofixity=null)
     {
-        return new XpresionOp($input, $fixity, $associativity, $priority, $arity, $output, $otype, $ofixity);
+        return new XpresionOp($input, $fixity, $associativity, $priority, /*$arity,*/ $output, $otype, $ofixity);
     }
     public static function Func($input='', $output='', $otype=null, $priority=5, $associativity=null, $fixity=null)
     {
         return new XpresionFunc($input, $output, $otype, $priority, $associativity, $fixity);
     }
         
-    public static function reduce(&$token_queue, &$op_queue, &$nop_queue, $current_op=null, $pos=0)
+    public static function reduce(&$token_queue, &$op_queue, &$nop_queue, $current_op=null, $pos=0, $err=null)
     {
         $nop = null;
         $nop_index = 0;
@@ -870,7 +962,15 @@ class Xpresion
             // push to nop_queue/op_queue
             if (Xpresion::T_N_OP === $opc->type)
             {
-                $n = $opc->node(null, $pos, count($op_queue)+1);
+                $validation = $opc->validate($pos, $op_queue, $token_queue);
+                if ( !$validation[0] )
+                {
+                    // operator is not valid in current state
+                    $err->err = true;
+                    $err->msg = $validation[1];
+                    return false;
+                }
+                $n = $opc->node(null, $pos, $op_queue, $token_queue);
                 array_unshift($nop_queue, $n);
                 array_unshift($op_queue, $n);
             }
@@ -884,7 +984,7 @@ class Xpresion
                 
                 // n-ary/multi-part operator, further parts
                 // combine one-by-one, until n-ary operator is complete
-                if ($nop && $nop->op_next( $opc ))
+                if ($nop && $nop->op_next( $opc, $pos, $op_queue, $token_queue ))
                 {
                     while (count($op_queue) > $nop_index)
                     {
@@ -906,6 +1006,17 @@ class Xpresion
                     else
                     {
                         return;
+                    }
+                }
+                else
+                {
+                    $validation = $opc->validate($pos, $op_queue, $token_queue);
+                    if ( !$validation[0] )
+                    {
+                        // operator is not valid in current state
+                        $err->err = true;
+                        $err->msg = $validation[1];
+                        return false;
                     }
                 }
                 
@@ -990,7 +1101,7 @@ class Xpresion
         $t_var_is_also_ident = !isset($RE['t_var']);
         
         $err = 0;
-        
+        $errors = (object)array('err'=> false, 'msg'=> '');
         $expr = $xpr->source;
         $l = strlen($expr);
         $xpr->_cnt = 0;
@@ -1073,7 +1184,13 @@ class Xpresion
                 if (false !== $t)
                 {
                     $t_index+=1;
-                    Xpresion::reduce( $AST, $OPS, $NOPS, $t, $t_index );
+                    Xpresion::reduce( $AST, $OPS, $NOPS, $t, $t_index, $errors );
+                    if ( $errors->err )
+                    {
+                        $err = 1;
+                        $errmsg = $errors->msg;
+                        break;
+                    }
                     $i += strlen($m[ 0 ]);
                     continue;
                 }
@@ -1104,7 +1221,13 @@ class Xpresion
                 if (false !== $t)
                 {
                     $t_index+=1;
-                    Xpresion::reduce( $AST, $OPS, $NOPS, $t, $t_index );
+                    Xpresion::reduce( $AST, $OPS, $NOPS, $t, $t_index, $errors );
+                    if ( $errors->err )
+                    {
+                        $err = 1;
+                        $errmsg = $errors->msg;
+                        break;
+                    }
                     $i += strlen($v);
                     continue;
                 }
@@ -1141,7 +1264,13 @@ class Xpresion
                 if (false !== $t)
                 {
                     $t_index+=1;
-                    Xpresion::reduce( $AST, $OPS, $NOPS, $t, $t_index );
+                    Xpresion::reduce( $AST, $OPS, $NOPS, $t, $t_index, $errors );
+                    if ( $errors->err )
+                    {
+                        $err = 1;
+                        $errmsg = $errors->msg;
+                        break;
+                    }
                     $i += strlen($m[ 0 ]);
                     continue;
                 }
@@ -1154,13 +1283,15 @@ class Xpresion
             }
         }
         
-        $err = 0;
-        Xpresion::reduce( $AST, $OPS, $NOPS );
-        
-        if ((1 !== count($AST)) || !empty($OPS))
+        if ( !$err )
         {
-            $err = 1;
-            $errmsg = 'Parse Error, Mismatched Parentheses or Operators';
+            Xpresion::reduce( $AST, $OPS, $NOPS );
+            
+            if ((1 !== count($AST)) || !empty($OPS))
+            {
+                $err = 1;
+                $errmsg = 'Parse Error, Mismatched Parentheses or Operators';
+            }
         }
         
         if (!$err)
@@ -1189,7 +1320,7 @@ class Xpresion
             $xpr->_cache = new \stdClass;
             $xpr->_evaluator_str = '';
             $xpr->_evaluator = $xpr->dummy_evaluator;
-            echo( 'Xpresion Error: ' . $errmsg . ' at ' . $expr );
+            echo( 'Xpresion Error: ' . $errmsg . ' at ' . $expr . "\n");
         }
         else
         {
@@ -1470,121 +1601,121 @@ class Xpresion
     if (self::$_configured) return;
 
     Xpresion::defOp(array(
-    //------------------------------------------------------------------------------------------------------------------------
-    //symbol    input               ,fixity                 ,associativity      ,priority   ,arity  ,output         ,output_type
-    //------------------------------------------------------------------------------------------------------------------------
+    //----------------------------------------------------------------------------------------------------------------------
+    //symbol    input               ,fixity                 ,associativity      ,priority   ,output         ,output_type
+    //----------------------------------------------------------------------------------------------------------------------
                 // bra-kets as n-ary operators
      '('    =>  Xpresion::Op(
-                array('(',')')      ,Xpresion::POSTFIX      ,Xpresion::RIGHT    ,1          ,1      ,'$0'           ,Xpresion::T_DUM 
+                array('(',1,')')    ,Xpresion::POSTFIX      ,Xpresion::RIGHT    ,1          ,'$0'           ,Xpresion::T_DUM 
                 )
-    ,')'    =>  Xpresion::Op(')')
+    ,')'    =>  Xpresion::Op(array(1,')'))
     ,'['    =>  Xpresion::Op(
-                array('[',']')      ,Xpresion::POSTFIX      ,Xpresion::RIGHT    ,2          ,1      ,'array($0)'    ,Xpresion::T_ARY 
+                array('[',1,']')    ,Xpresion::POSTFIX      ,Xpresion::RIGHT    ,2          ,'array($0)'    ,Xpresion::T_ARY 
                 )
-    ,']'    =>  Xpresion::Op(']')
+    ,']'    =>  Xpresion::Op(array(1,']'))
     ,','    =>  Xpresion::Op(
-                ','                 ,Xpresion::INFIX        ,Xpresion::LEFT     ,3          ,2      ,'$0,$1'        ,Xpresion::T_DFT 
+                array(1,',',1)      ,Xpresion::INFIX        ,Xpresion::LEFT     ,3          ,'$0,$1'        ,Xpresion::T_DFT 
                 )
                // n-ary (ternary) if-then-else operator
     ,'?'    =>  Xpresion::Op(
-                array('?',':')      ,Xpresion::INFIX        ,Xpresion::RIGHT    ,100        ,3      ,'($0?$1:$2)'   ,Xpresion::T_BOL 
+                array(1,'?',1,':',1) ,Xpresion::INFIX       ,Xpresion::RIGHT    ,100        ,'($0?$1:$2)'   ,Xpresion::T_BOL 
                 )
-    ,':'    =>  Xpresion::Op(':')
+    ,':'    =>  Xpresion::Op(array(1,':',1))
     ,'!'    =>  Xpresion::Op(
-                '!'                 ,Xpresion::PREFIX       ,Xpresion::RIGHT    ,10         ,1      ,'!$0'          ,Xpresion::T_BOL 
+                array('!',1)        ,Xpresion::PREFIX       ,Xpresion::RIGHT    ,10         ,'!$0'          ,Xpresion::T_BOL 
                 )
     ,'~'    =>  Xpresion::Op(
-                '~'                 ,Xpresion::PREFIX       ,Xpresion::RIGHT    ,10         ,1      ,'~$0'          ,Xpresion::T_NUM 
+                array('~',1)        ,Xpresion::PREFIX       ,Xpresion::RIGHT    ,10         ,'~$0'          ,Xpresion::T_NUM 
                 )
     ,'^'    =>  Xpresion::Op(
-                '^'                 ,Xpresion::INFIX        ,Xpresion::RIGHT    ,11         ,2      ,'pow($0,$1)'   ,Xpresion::T_NUM 
+                array(1,'^',1)      ,Xpresion::INFIX        ,Xpresion::RIGHT    ,11         ,'pow($0,$1)'   ,Xpresion::T_NUM 
                 )
     ,'*'    =>  Xpresion::Op(
-                '*'                 ,Xpresion::INFIX        ,Xpresion::LEFT     ,20         ,2      ,'($0*$1)'      ,Xpresion::T_NUM 
+                array(1,'*',1)      ,Xpresion::INFIX        ,Xpresion::LEFT     ,20         ,'($0*$1)'      ,Xpresion::T_NUM 
                 ) 
     ,'/'    =>  Xpresion::Op(
-                '/'                 ,Xpresion::INFIX        ,Xpresion::LEFT     ,20         ,2      ,'($0/$1)'      ,Xpresion::T_NUM 
+                array(1,'/',1)      ,Xpresion::INFIX        ,Xpresion::LEFT     ,20         ,'($0/$1)'      ,Xpresion::T_NUM 
                 )
     ,'%'    =>  Xpresion::Op(
-                '%'                 ,Xpresion::INFIX        ,Xpresion::LEFT     ,20         ,2      ,'($0%$1)'      ,Xpresion::T_NUM 
+                array(1,'%',1)      ,Xpresion::INFIX        ,Xpresion::LEFT     ,20         ,'($0%$1)'      ,Xpresion::T_NUM 
                 )
                 // addition/concatenation/unary plus as polymorphic operators
     ,'+'    =>  Xpresion::Op()->Polymorphic(array(
                 // array concatenation
                 array('${TOK} and (!${PREV_IS_OP}) and (${DEDUCED_TYPE}===Xpresion::T_ARY)', Xpresion::Op(
-                '+'                 ,Xpresion::INFIX        ,Xpresion::LEFT     ,25         ,2      ,'$Fn->ary_merge($0,$1)'    ,Xpresion::T_ARY 
+                array(1,'+',1)      ,Xpresion::INFIX        ,Xpresion::LEFT     ,25         ,'$Fn->ary_merge($0,$1)'    ,Xpresion::T_ARY 
                 ))
                 // string concatenation
                 ,array('${TOK} and (!${PREV_IS_OP}) and (${DEDUCED_TYPE}===Xpresion::T_STR)', Xpresion::Op(
-                '+'                 ,Xpresion::INFIX        ,Xpresion::LEFT     ,25         ,2      ,'($0.strval($1))'  ,Xpresion::T_STR 
+                array(1,'+',1)      ,Xpresion::INFIX        ,Xpresion::LEFT     ,25         ,'($0.strval($1))'  ,Xpresion::T_STR 
                 ))
                 // numeric addition
                 ,array('${TOK} and (!${PREV_IS_OP})', Xpresion::Op(
-                '+'                 ,Xpresion::INFIX        ,Xpresion::LEFT     ,25         ,2      ,'($0+$1)'      ,Xpresion::T_NUM 
+                array(1,'+',1)      ,Xpresion::INFIX        ,Xpresion::LEFT     ,25         ,'($0+$1)'      ,Xpresion::T_NUM 
                 ))
                 // unary plus
                 ,array('!${TOK} or ${PREV_IS_OP}', Xpresion::Op(
-                '+'                 ,Xpresion::PREFIX       ,Xpresion::RIGHT    ,4          ,1      ,'$0'           ,Xpresion::T_NUM 
+                array('+',1)        ,Xpresion::PREFIX       ,Xpresion::RIGHT    ,4          ,'$0'           ,Xpresion::T_NUM 
                 ))
                 ))
     ,'-'    =>  Xpresion::Op()->Polymorphic(array(
                 // numeric subtraction
                 array('${TOK} and (!${PREV_IS_OP})', Xpresion::Op(
-                '-'                 ,Xpresion::INFIX        ,Xpresion::LEFT     ,25         ,2      ,'($0-$1)'      ,Xpresion::T_NUM 
+                array(1,'-',1)      ,Xpresion::INFIX        ,Xpresion::LEFT     ,25         ,'($0-$1)'      ,Xpresion::T_NUM 
                 ))
                 // unary negation
                 ,array('!${TOK} or ${PREV_IS_OP}', Xpresion::Op(
-                '-'                 ,Xpresion::PREFIX       ,Xpresion::RIGHT    ,4          ,1      ,'(-$0)'        ,Xpresion::T_NUM 
+                array('-',1)        ,Xpresion::PREFIX       ,Xpresion::RIGHT    ,4          ,'(-$0)'        ,Xpresion::T_NUM 
                 ))
                 ))
     ,'>>'   =>  Xpresion::Op(
-                '>>'                ,Xpresion::INFIX        ,Xpresion::LEFT     ,30         ,2      ,'($0>>$1)'     ,Xpresion::T_NUM 
+                array(1,'>>',1)     ,Xpresion::INFIX        ,Xpresion::LEFT     ,30         ,'($0>>$1)'     ,Xpresion::T_NUM 
                 )
     ,'<<'   =>  Xpresion::Op(
-                '<<'                ,Xpresion::INFIX        ,Xpresion::LEFT     ,30         ,2      ,'($0<<$1)'     ,Xpresion::T_NUM 
+                array(1,'<<',1)     ,Xpresion::INFIX        ,Xpresion::LEFT     ,30         ,'($0<<$1)'     ,Xpresion::T_NUM 
                 )
     ,'>'    =>  Xpresion::Op(
-                '>'                 ,Xpresion::INFIX        ,Xpresion::LEFT     ,35         ,2      ,'($0>$1)'      ,Xpresion::T_BOL 
+                array(1,'>',1)      ,Xpresion::INFIX        ,Xpresion::LEFT     ,35         ,'($0>$1)'      ,Xpresion::T_BOL 
                 )
     ,'<'    =>  Xpresion::Op(
-                '<'                 ,Xpresion::INFIX        ,Xpresion::LEFT     ,35         ,2      ,'($0<$1)'      ,Xpresion::T_BOL 
+                array(1,'<',1)      ,Xpresion::INFIX        ,Xpresion::LEFT     ,35         ,'($0<$1)'      ,Xpresion::T_BOL 
                 )
     ,'>='   =>  Xpresion::Op(
-                '>='                ,Xpresion::INFIX        ,Xpresion::LEFT     ,35         ,2      ,'($0>=$1)'     ,Xpresion::T_BOL 
+                array(1,'>=',1)     ,Xpresion::INFIX        ,Xpresion::LEFT     ,35         ,'($0>=$1)'     ,Xpresion::T_BOL 
                 )
     ,'<='   =>  Xpresion::Op(
-                '<='                ,Xpresion::INFIX        ,Xpresion::LEFT     ,35         ,2      ,'($0<=$1)'     ,Xpresion::T_BOL 
+                array(1,'<=',1)     ,Xpresion::INFIX        ,Xpresion::LEFT     ,35         ,'($0<=$1)'     ,Xpresion::T_BOL 
                 )
     ,'=='   =>  Xpresion::Op()->Polymorphic(array(
                 // array equivalence
                 array('${DEDUCED_TYPE}===Xpresion::T_ARY', Xpresion::Op(
-                '=='                ,Xpresion::INFIX        ,Xpresion::LEFT     ,40         ,2      ,'$Fn->ary_eq($0,$1)'   ,Xpresion::T_BOL 
+                array(1,'==',1)     ,Xpresion::INFIX        ,Xpresion::LEFT     ,40         ,'$Fn->ary_eq($0,$1)'   ,Xpresion::T_BOL 
                 ))
                 // default equivalence
                 ,array('true', Xpresion::Op(
-                '=='                ,Xpresion::INFIX        ,Xpresion::LEFT     ,40         ,2      ,'($0==$1)'     ,Xpresion::T_BOL 
+                array(1,'==',1)     ,Xpresion::INFIX        ,Xpresion::LEFT     ,40         ,'($0==$1)'     ,Xpresion::T_BOL 
                 ))
                 ))
     ,'!='   =>  Xpresion::Op(
-                '!='                ,Xpresion::INFIX        ,Xpresion::LEFT     ,40         ,2      ,'($0!=$1)'     ,Xpresion::T_BOL 
+                array(1,'!=',1)     ,Xpresion::INFIX        ,Xpresion::LEFT     ,40         ,'($0!=$1)'     ,Xpresion::T_BOL 
                 )
     ,'matches'=>Xpresion::Op(
-                'matches'           ,Xpresion::INFIX        ,Xpresion::NONE     ,40         ,2      ,'$Fn->match($1,$0)'    ,Xpresion::T_BOL 
+                array(1,'matches',1) ,Xpresion::INFIX       ,Xpresion::NONE     ,40         ,'$Fn->match($1,$0)'    ,Xpresion::T_BOL 
                 )
     ,'in'   =>  Xpresion::Op(
-                'in'                ,Xpresion::INFIX        ,Xpresion::NONE     ,40         ,2      ,'$Fn->contains($1,$0)'      ,Xpresion::T_BOL 
+                array(1,'in',1)     ,Xpresion::INFIX        ,Xpresion::NONE     ,40         ,'$Fn->contains($1,$0)'      ,Xpresion::T_BOL 
                 )
     ,'&'    =>  Xpresion::Op(
-                '&'                 ,Xpresion::INFIX        ,Xpresion::LEFT     ,45         ,2      ,'($0&$1)'      ,Xpresion::T_NUM 
+                array(1,'&',1)      ,Xpresion::INFIX        ,Xpresion::LEFT     ,45         ,'($0&$1)'      ,Xpresion::T_NUM 
                 )
     ,'|'    =>  Xpresion::Op(
-                '|'                 ,Xpresion::INFIX        ,Xpresion::LEFT     ,46         ,2      ,'($0|$1)'      ,Xpresion::T_NUM 
+                array(1,'|',1)      ,Xpresion::INFIX        ,Xpresion::LEFT     ,46         ,'($0|$1)'      ,Xpresion::T_NUM 
                 )
     ,'&&'   =>  Xpresion::Op(
-                '&&'                ,Xpresion::INFIX        ,Xpresion::LEFT     ,47         ,2      ,'($0&&$1)'     ,Xpresion::T_BOL 
+                array(1,'&&',1)     ,Xpresion::INFIX        ,Xpresion::LEFT     ,47         ,'($0&&$1)'     ,Xpresion::T_BOL 
                 )
     ,'||'   =>  Xpresion::Op(
-                '||'                ,Xpresion::INFIX        ,Xpresion::LEFT     ,48         ,2      ,'($0||$1)'     ,Xpresion::T_BOL 
+                array(1,'||',1)     ,Xpresion::INFIX        ,Xpresion::LEFT     ,48         ,'($0||$1)'     ,Xpresion::T_BOL 
                 )
     //------------------------------------------
     //                aliases

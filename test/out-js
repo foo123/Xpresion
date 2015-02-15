@@ -1,4 +1,4 @@
-Xpresion.VERSION 0.5.2
+Xpresion.VERSION 0.6
 
 Expression: 13
 Variables : []
@@ -139,9 +139,15 @@ Evaluator : (Cache.re_1.test("string")&&Cache.re_1.test("string2"))
 Expression: $v in ["a","b","c"]
 Variables : [v]
 Evaluator : Fn.contains(["a","b","c"],Var["v"])
-Expression: 1 ? (2+3) : (3+4)
+Expression: 1 ? : (1+2) (3+4)
 Variables : []
-Evaluator : (1?(2+3):(3+4))
+Evaluator : 
+Expression: 1 ? sum(1,2) : (3+4)
+Variables : []
+Evaluator : (1?Fn.sum(1,2):(3+4))
+Expression: 1 ? 1+2 : (3+4)
+Variables : []
+Evaluator : (1?(1+2):(3+4))
 Expression: 1 ? (2+3) : 2 ? (3+4) : (4+5)
 Variables : []
 Evaluator : (1?(2+3):(2?(3+4):(4+5)))

@@ -50,6 +50,8 @@ echo_(Xpresion::_('((1^2))^3')->debug());
 echo_(Xpresion::_('`^regex?`i matches "string"')->debug());
 echo_(Xpresion::_('`^regex?`i matches "string" and `^regex?`i matches "string2"')->debug());
 echo_(Xpresion::_('$v in ["a","b","c"]')->debug());
-echo_(Xpresion::_('1 ? (2+3) : (3+4)')->debug());
+echo_(Xpresion::_('1 ? : (1+2) (3+4)')->debug());
+echo_(Xpresion::_('1 ? sum(1,2) : (3+4)')->debug());
+echo_(Xpresion::_('1 ? 1+2 : (3+4)')->debug());
 echo_(Xpresion::_('1 ? (2+3) : 2 ? (3+4) : (4+5)')->debug());
 

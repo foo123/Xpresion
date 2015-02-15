@@ -8,7 +8,7 @@ a simple and flexible eXpression parser engine (with custom functions and variab
 **light-weight (~16kB minified, ~6kB zipped)**
 
 
-**version 0.5.2** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
+**version 0.6** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
 
 
 
@@ -78,7 +78,6 @@ var path = require('path'),
     echo = console.log
 ;
 
-
 Xpresion.defaultConfiguration();
 
 echo( 'Xpresion.VERSION ' + Xpresion.VERSION + "\n" );
@@ -124,14 +123,15 @@ echo(Xpresion('((1^2))^3').debug());
 echo(Xpresion('`^regex?`i matches "string"').debug());
 echo(Xpresion('`^regex?`i matches "string" and `^regex?`i matches "string2"').debug());
 echo(Xpresion('$v in ["a","b","c"]').debug());
-echo(Xpresion('1 ? (2+3) : (3+4)').debug());
+echo(Xpresion('1 ? : (1+2) (3+4)').debug());
+echo(Xpresion('1 ? sum(1,2) : (3+4)').debug());
+echo(Xpresion('1 ? 1+2 : (3+4)').debug());
 echo(Xpresion('1 ? (2+3) : 2 ? (3+4) : (4+5)').debug());
-
 ```
 
 **output**
 ```text
-Xpresion.VERSION 0.5.2
+Xpresion.VERSION 0.6
 
 Expression: 13
 Variables : []
@@ -272,9 +272,15 @@ Evaluator : (Cache.re_1.test("string")&&Cache.re_1.test("string2"))
 Expression: $v in ["a","b","c"]
 Variables : [v]
 Evaluator : Fn.contains(["a","b","c"],Var["v"])
-Expression: 1 ? (2+3) : (3+4)
+Expression: 1 ? : (1+2) (3+4)
 Variables : []
-Evaluator : (1?(2+3):(3+4))
+Evaluator : 
+Expression: 1 ? sum(1,2) : (3+4)
+Variables : []
+Evaluator : (1?Fn.sum(1,2):(3+4))
+Expression: 1 ? 1+2 : (3+4)
+Variables : []
+Evaluator : (1?(1+2):(3+4))
 Expression: 1 ? (2+3) : 2 ? (3+4) : (4+5)
 Variables : []
 Evaluator : (1?(2+3):(2?(3+4):(4+5)))
@@ -287,9 +293,9 @@ Evaluator : (1?(2+3):(2?(3+4):(4+5)))
 // define an operator
 Xpresion.defOp({
     /*----------------------------------------------------------------------------------------
-     symbol           input,    fixity,  associativity, priority, arity, output,     output_type
+     symbol           input,    fixity,  associativity, priority, output,     output_type
     ------------------------------------------------------------------------------------------*/
-    '==' :Xpresion.Op('==',Xpresion.INFIX, Xpresion.LEFT, 40,        2,  '($0==$1)', Xpresion.T_BOL )
+    '==' :Xpresion.Op([1,'==',1],Xpresion.INFIX, Xpresion.LEFT, 40, '($0==$1)', Xpresion.T_BOL )
 });
 
 // define an alias
@@ -366,121 +372,121 @@ token                re
 Xpresion.defOp({
 // e.g https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
 /*------------------------------------------------------------------------------------------------
- symbol     input       ,fixity     ,associativity  ,priority   ,arity  ,output     ,output_type
+ symbol     input           ,fixity     ,associativity  ,priority   ,output     ,output_type
 --------------------------------------------------------------------------------------------------*/
             // bra-kets as n-ary operators
  '('    :   Op(
-            ['(',')']   ,POSTFIX    ,RIGHT          ,1          ,1      ,'$0'       ,T_DUM 
+            ['(',1,')']     ,POSTFIX    ,RIGHT          ,1          ,'$0'       ,T_DUM 
             )
-,')'    :   Op(')')
+,')'    :   Op([1,')'])
 ,'['    :   Op(
-            ['[',']']   ,POSTFIX    ,RIGHT          ,2          ,1      ,'[$0]'     ,T_ARY 
+            ['[',1,']']     ,POSTFIX    ,RIGHT          ,2          ,'[$0]'     ,T_ARY 
             )
-,']'    :   Op(']')
+,']'    :   Op([1,']'])
 ,','    :   Op(
-            ','         ,INFIX      ,LEFT           ,3          ,2      ,'$0,$1'    ,T_DFT 
+            [1,',',1]       ,INFIX      ,LEFT           ,3          ,'$0,$1'    ,T_DFT 
             )
             // n-ary (ternary) if-then-else operator
 ,'?'    :   Op(
-            ['?',':']   ,INFIX      ,RIGHT          ,100        ,3      ,'($0?$1:$2)'   ,T_BOL 
+            [1,'?',1,':',1] ,INFIX      ,RIGHT          ,100        ,'($0?$1:$2)'   ,T_BOL 
             )
-,':'    :   Op(':')
+,':'    :   Op([1,':',1])
 
 ,'!'    :   Op(
-            '!'         ,PREFIX     ,RIGHT          ,10         ,1      ,'!$0'      ,T_BOL 
+            ['!',1]         ,PREFIX     ,RIGHT          ,10         ,'!$0'      ,T_BOL 
             )
 ,'~'    :   Op(
-            '~'         ,PREFIX     ,RIGHT          ,10         ,1      ,'~$0'      ,T_NUM 
+            ['~',1]         ,PREFIX     ,RIGHT          ,10         ,'~$0'      ,T_NUM 
             )
 ,'^'    :   Op(
-            '^'         ,INFIX      ,RIGHT          ,11         ,2      ,'Math.pow($0,$1)'  ,T_NUM 
+            [1,'^',1]       ,INFIX      ,RIGHT          ,11         ,'Math.pow($0,$1)'  ,T_NUM 
             )
 ,'*'    :   Op(
-            '*'         ,INFIX      ,LEFT           ,20         ,2      ,'($0*$1)'  ,T_NUM 
+            [1,'*',1]       ,INFIX      ,LEFT           ,20         ,'($0*$1)'  ,T_NUM 
             ) 
 ,'/'    :   Op(
-            '/'         ,INFIX      ,LEFT           ,20         ,2      ,'($0/$1)'  ,T_NUM 
+            [1,'/',1]       ,INFIX      ,LEFT           ,20         ,'($0/$1)'  ,T_NUM 
             )
 ,'%'    :   Op(
-            '%'         ,INFIX      ,LEFT           ,20         ,2      ,'($0%$1)'  ,T_NUM 
+            [1,'%',1]       ,INFIX      ,LEFT           ,20         ,'($0%$1)'  ,T_NUM 
             )
             // addition/concatenation/unary plus as polymorphic operators
 ,'+'    :   Op().Polymorphic([
             // array concatenation
             ["${TOK} && !${PREV_IS_OP} && (${DEDUCED_TYPE}===Xpresion.T_ARY)", Op(
-            '+'         ,INFIX      ,LEFT           ,25         ,2      ,'Fn.ary_merge($0,$1)'  ,T_ARY 
+            [1,'+',1]       ,INFIX      ,LEFT           ,25         ,'Fn.ary_merge($0,$1)'  ,T_ARY 
             )]
             // string concatenation
             ,["${TOK} && !${PREV_IS_OP} && (${DEDUCED_TYPE}===Xpresion.T_STR)", Op(
-            '+'         ,INFIX      ,LEFT           ,25         ,2      ,'($0+String($1))'  ,T_STR 
+            [1,'+',1]       ,INFIX      ,LEFT           ,25         ,'($0+String($1))'  ,T_STR 
             )]
             // numeric addition
             ,["${TOK} && !${PREV_IS_OP}", Op(
-            '+'         ,INFIX      ,LEFT           ,25         ,2      ,'($0+$1)'  ,T_NUM 
+            [1,'+',1]       ,INFIX      ,LEFT           ,25         ,'($0+$1)'  ,T_NUM 
             )]
             // unary plus
             ,["!${TOK} || ${PREV_IS_OP}", Op(
-            '+'         ,PREFIX     ,RIGHT          ,4          ,1      ,'$0'       ,T_NUM 
+            ['+',1]         ,PREFIX     ,RIGHT          ,4          ,'$0'       ,T_NUM 
             )]
             ])
 ,'-'    :   Op().Polymorphic([
             // numeric subtraction
             ["${TOK} && !${PREV_IS_OP}", Op(
-            '-'         ,INFIX      ,LEFT           ,25         ,2      ,'($0-$1)'  ,T_NUM 
+            [1,'-',1]       ,INFIX      ,LEFT           ,25         ,'($0-$1)'  ,T_NUM 
             )]
             // unary negation
             ,["!${TOK} || ${PREV_IS_OP}", Op(
-            '-'         ,PREFIX     ,RIGHT          ,4          ,1      ,'(-$0)'        ,T_NUM 
+            ['-',1]         ,PREFIX     ,RIGHT          ,4          ,'(-$0)'        ,T_NUM 
             )]
             ])
 ,'>>'   :   Op(
-            '>>'        ,INFIX      ,LEFT           ,30         ,2      ,'($0>>$1)'     ,T_NUM 
+            [1,'>>',1]      ,INFIX      ,LEFT           ,30         ,'($0>>$1)'     ,T_NUM 
             )
 ,'<<'   :   Op(
-            '<<'        ,INFIX      ,LEFT           ,30         ,2      ,'($0<<$1)'     ,T_NUM 
+            [1,'<<',1]      ,INFIX      ,LEFT           ,30         ,'($0<<$1)'     ,T_NUM 
             )
 ,'>'    :   Op(
-            '>'         ,INFIX      ,LEFT           ,35         ,2      ,'($0>$1)'      ,T_BOL 
+            [1,'>',1]       ,INFIX      ,LEFT           ,35         ,'($0>$1)'      ,T_BOL 
             )
 ,'<'    :   Op(
-            '<'         ,INFIX      ,LEFT           ,35         ,2      ,'($0<$1)'      ,T_BOL 
+            [1,'<',1]       ,INFIX      ,LEFT           ,35         ,'($0<$1)'      ,T_BOL 
             )
 ,'>='   :   Op(
-            '>='        ,INFIX      ,LEFT           ,35         ,2      ,'($0>=$1)'     ,T_BOL 
+            [1,'>=',1]      ,INFIX      ,LEFT           ,35         ,'($0>=$1)'     ,T_BOL 
             )
 ,'<='   :   Op(
-            '<='        ,INFIX      ,LEFT           ,35         ,2      ,'($0<=$1)'     ,T_BOL 
+            [1,'<=',1]      ,INFIX      ,LEFT           ,35         ,'($0<=$1)'     ,T_BOL 
             )
 ,'=='   :   Op().Polymorphic([
             // array equivalence
             ["${DEDUCED_TYPE}===Xpresion.T_ARY", Op(
-            '=='        ,INFIX      ,LEFT           ,40         ,2      ,'Fn.ary_eq($0,$1)' ,T_BOL 
+            [1,'==',1]      ,INFIX      ,LEFT           ,40         ,'Fn.ary_eq($0,$1)' ,T_BOL 
             )]
             // default equivalence
             ,["true", Op(
-            '=='        ,INFIX      ,LEFT           ,40         ,2      ,'($0==$1)'     ,T_BOL 
+            [1,'==',1]      ,INFIX      ,LEFT           ,40         ,'($0==$1)'     ,T_BOL 
             )]
             ])
 ,'!='   :   Op(
-            '!='        ,INFIX      ,LEFT           ,40         ,2      ,'($0!=$1)'     ,T_BOL 
+            [1,'!=',1]      ,INFIX      ,LEFT           ,40         ,'($0!=$1)'     ,T_BOL 
             )
 ,'matches': Op(
-            'matches'   ,INFIX      ,NONE           ,40         ,2      ,'$0.test($1)'  ,T_BOL 
+            [1,'matches',1] ,INFIX      ,NONE           ,40         ,'$0.test($1)'  ,T_BOL 
             )
 ,'in'   :   Op(
-            'in'        ,INFIX      ,NONE           ,40         ,2      ,'Fn.contains($1,$0)'  ,T_BOL 
+            [1,'in',1]      ,INFIX      ,NONE           ,40         ,'Fn.contains($1,$0)'  ,T_BOL 
             )
 ,'&'    :   Op(
-            '&'         ,INFIX      ,LEFT           ,45         ,2      ,'($0&$1)'      ,T_NUM 
+            [1,'&',1]       ,INFIX      ,LEFT           ,45         ,'($0&$1)'      ,T_NUM 
             )
 ,'|'    :   Op(
-            '|'         ,INFIX      ,LEFT           ,46         ,2      ,'($0|$1)'      ,T_NUM 
+            [1,'|',1]       ,INFIX      ,LEFT           ,46         ,'($0|$1)'      ,T_NUM 
             )
 ,'&&'   :   Op(
-            '&&'        ,INFIX      ,LEFT           ,47         ,2      ,'($0&&$1)'     ,T_BOL 
+            [1,'&&',1]      ,INFIX      ,LEFT           ,47         ,'($0&&$1)'     ,T_BOL 
             )
 ,'||'   :   Op(
-            '||'        ,INFIX      ,LEFT           ,48         ,2      ,'($0||$1)'     ,T_BOL 
+            [1,'||',1]      ,INFIX      ,LEFT           ,48         ,'($0||$1)'     ,T_BOL 
             )
 /*------------------------------------------
                 aliases
