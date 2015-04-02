@@ -43,7 +43,7 @@ a simple and flexible eXpression parser engine (with custom functions and variab
 **(v. 0.5+)**
 
 Xpresion **is not an expression parser**, it does not parse expressions. It is a parser engine. 
-It builds parsers, which parse (custom) expressions.
+It builds parsers, which parse (custom) expressions. Effectively it is a small [rewrite system](http://en.wikipedia.org/wiki/Abstract_rewriting_system)
 
 This is accomplished by configuring the Xpresion engine to fit the needed expression syntax.
 Configuration is intutive, easy and flexible (see examples).
@@ -61,6 +61,9 @@ However since Xpresion is a parser engine, adding a default configuration, it ca
 8. define aliases of operators/functions seamlessly
 9. define new custom expression syntaxes easily (e.g via configuration or via extension/override of methods)
 10. implementations for Node/JS, PHP, Python (only one class per implementation)
+
+
+**If you use Xpresion in your application and you want to share it, feel free to submit an example link**
 
 
 ####Live Examples
