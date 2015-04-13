@@ -2,7 +2,7 @@
 *
 *   Xpresion
 *   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-*   @version: 0.6
+*   @version: 0.6.1
 *
 *   https://github.com/foo123/Xpresion
 *
@@ -34,10 +34,11 @@
     
     "use strict";
     
-    var __version__ = "0.6",
+    var __version__ = "0.6.1",
     
         PROTO = 'prototype', HAS = 'hasOwnProperty', toString = Object[PROTO].toString,
-        toJSON = JSON.stringify, Keys = Object.keys, Extend = Object.create,
+        toJSON = JSON.stringify, Keys = Object.keys, Extend = Object.create, 
+        Abs = Math.abs, Max = Math.max,
         
         F = function( a, f ){ return new Function( a, f ); },
         RE = function( r, f ){ return new RegExp( r, f||'' ); },
@@ -61,7 +62,207 @@
             return (v instanceof String) || ('[object String]' === toString.call(v));
         },
         
-        Tpl, Node, Alias, Tok, Op, Func, Xpresion,
+        // pad_()
+        pad_ = function( str, len, chr, leftJustify ) {
+            chr = chr || ' ';
+            var str1 = str.toString(), strlen = str1.length,
+                padding = (strlen >= len) ? '' : new Array(1 + len - strlen >>> 0).join(chr);
+            return leftJustify ? str + padding : padding + str;
+        },
+        
+        formatChr = /\\?([a-z])/gi,
+            
+        date_formater = {
+        // Day
+        d: function( jsdate, locale ) { // Day of month w/leading 0; 01..31
+            return pad_(jsdate.getDate(), 2, '0');
+        },
+        D: function( jsdate, locale ) { // Shorthand day name; Mon...Sun
+            return locale.days_abr[ jsdate.getDay() ];
+        },
+        j: function( jsdate, locale ) { // Day of month; 1..31
+            return jsdate.getDate();
+        },
+        l: function( jsdate, locale ) { // Full day name; Monday...Sunday
+            return locale.days[ jsdate.getDay() ];
+        },
+        N: function( jsdate, locale ) { // ISO-8601 day of week; 1[Mon]..7[Sun]
+            return jsdate.getDay() || 7;
+        },
+        S: function( jsdate, locale ) { // Ordinal suffix for day of month; st, nd, rd, th
+            var j = jsdate.getDate();
+            return j < 4 || j > 20 && (locale.ordinal[j % 10 - 1] || locale.ordinal[3]);
+        },
+        w: function( jsdate, locale ) { // Day of week; 0[Sun]..6[Sat]
+            return jsdate.getDay();
+        },
+        z: function( jsdate, locale ) { // Day of year; 0..365
+            var a = new Date(date_formater.Y(jsdate, locale), jsdate.getMonth(), jsdate.getDate()),
+            b = new Date(date_formater.Y(jsdate, locale), 0, 1);
+            return round((a - b) / 864e5);
+        },
+
+        // Week
+        W: function( jsdate, locale ) { // ISO-8601 week number
+            var a = new Date(date_formater.Y(jsdate, locale), jsdate.getMonth(), jsdate.getDate() - date_formater.N(jsdate, locale) + 3),
+            b = new Date(a.getFullYear(), 0, 4);
+            return pad_(1 + round((a - b) / 864e5 / 7), 2, '0');
+        },
+
+        // Month
+        F: function( jsdate, locale ) { // Full month name; January...December
+            return locale.months[/*6 +*/ jsdate.getMonth()];
+        },
+        m: function( jsdate, locale ) { // Month w/leading 0; 01...12
+            return pad_(jsdate.getMonth()+1, 2, '0');
+        },
+        M: function( jsdate, locale ) { // Shorthand month name; Jan...Dec
+            return locale.months_abr[/*6 +*/ jsdate.getMonth()];
+        },
+        n: function( jsdate, locale ) { // Month; 1...12
+            return jsdate.getMonth() + 1;
+        },
+        t: function( jsdate, locale ) { // Days in month; 28...31
+            return (new Date(date_formater.Y(jsdate, locale), jsdate.getMonth()+1, 0)).getDate();
+        },
+
+        // Year
+        L: function( jsdate, locale ) { // Is leap year?; 0 or 1
+            var j = date_formater.Y(jsdate, locale);
+            return j % 4 === 0 & j % 100 !== 0 | j % 400 === 0;
+        },
+        o: function( jsdate, locale ) { // ISO-8601 year
+            var n = jsdate.getMonth()+1,
+            W = date_formater.W(jsdate, locale),
+            Y = date_formater.Y(jsdate, locale);
+            return Y + (n === 12 && W < 9 ? 1 : n === 1 && W > 9 ? -1 : 0);
+        },
+        Y: function( jsdate, locale ) { // Full year; e.g. 1980...2010
+            return jsdate.getFullYear();
+        },
+        y: function( jsdate, locale ) { // Last two digits of year; 00...99
+            return date_formater.Y(jsdate, locale).toString().slice(-2);
+        },
+
+        // Time
+        a: function( jsdate, locale ) { // am or pm
+            return jsdate.getHours() > 11 ? locale.meridian.pm : locale.meridian.am;
+        },
+        A: function( jsdate, locale ) { // AM or PM
+            return date_formater.a(jsdate, locale).toUpperCase();
+        },
+        B: function( jsdate, locale ) { // Swatch Internet time; 000..999
+            var H = jsdate.getUTCHours() * 36e2,
+            // Hours
+            i = jsdate.getUTCMinutes() * 60,
+            // Minutes
+            s = jsdate.getUTCSeconds(); // Seconds
+            return pad_(floor((H + i + s + 36e2) / 86.4) % 1e3, 3, '0');
+        },
+        g: function( jsdate, locale ) { // 12-Hours; 1..12
+            return date_formater.G(jsdate, locale) % 12 || 12;
+        },
+        G: function( jsdate, locale ) { // 24-Hours; 0..23
+            return jsdate.getHours();
+        },
+        h: function( jsdate, locale ) { // 12-Hours w/leading 0; 01..12
+            return pad_(date_formater.g(jsdate, locale), 2, '0');
+        },
+        H: function( jsdate, locale ) { // 24-Hours w/leading 0; 00..23
+            return pad_(date_formater.G(jsdate, locale), 2, '0');
+        },
+        i: function( jsdate, locale ) { // Minutes w/leading 0; 00..59
+            return pad_(jsdate.getMinutes(), 2, '0');
+        },
+        s: function( jsdate, locale ) { // Seconds w/leading 0; 00..59
+            return pad_(jsdate.getSeconds(), 2, '0');
+        },
+        u: function( jsdate, locale ) { // Microseconds; 000000-999000
+            return pad_(jsdate.getMilliseconds() * 1000, 6, '0');
+        },
+
+        // Timezone
+        e: function( jsdate, locale ) { // Timezone identifier; e.g. Atlantic/Azores, ...
+            // The following works, but requires inclusion of the very large
+            // timezone_abbreviations_list() function.
+            /*              return that.date_default_timezone_get();
+            */
+            throw 'Not supported (see source code of date() for timezone on how to add support)';
+        },
+        I: function( jsdate, locale ) { // DST observed?; 0 or 1
+            // Compares Jan 1 minus Jan 1 UTC to Jul 1 minus Jul 1 UTC.
+            // If they are not equal, then DST is observed.
+            var a = new Date(date_formater.Y(jsdate, locale), 0),
+            // Jan 1
+            c = Date.UTC(date_formater.Y(jsdate, locale), 0),
+            // Jan 1 UTC
+            b = new Date(date_formater.Y(jsdate, locale), 6),
+            // Jul 1
+            d = Date.UTC(date_formater.Y(jsdate, locale), 6); // Jul 1 UTC
+            return ((a - c) !== (b - d)) ? 1 : 0;
+        },
+        O: function( jsdate, locale ) { // Difference to GMT in hour format; e.g. +0200
+            var tzo = jsdate.getTimezoneOffset(),
+            a = abs(tzo);
+            return (tzo > 0 ? "-" : "+") + pad_(floor(a / 60) * 100 + a % 60, 4, '0');
+        },
+        P: function( jsdate, locale ) { // Difference to GMT w/colon; e.g. +02:00
+            var O = date_formater.O(jsdate, locale);
+            return (O.substr(0, 3) + ":" + O.substr(3, 2));
+        },
+        T: function( jsdate, locale ) { // Timezone abbreviation; e.g. EST, MDT, ...
+            return 'UTC';
+        },
+        Z: function( jsdate, locale ) { // Timezone offset in seconds (-43200...50400)
+            return -jsdate.getTimezoneOffset() * 60;
+        },
+
+        // Full Date/Time
+        c: function( jsdate, locale, formatChrCb ) { // ISO-8601 date.
+            return 'Y-m-d\\TH:i:sP'.replace(formatChr, formatChrCb);
+        },
+        r: function( jsdate, locale, formatChrCb ) { // RFC 2822
+            return 'D, d M Y H:i:s O'.replace(formatChr, formatChrCb);
+        },
+        U: function( jsdate, locale ) { // Seconds since UNIX epoch
+            return jsdate / 1000 | 0;
+        }
+        },
+        
+        locale_date = {
+            days: ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
+            days_abbr: ["Sun", "Mon", "Tue", "Wed", "Thur", "Fri", "Sat"], 
+            months: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
+            months_abbr: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+            meridian: {
+                'pm': 'pm', 
+                'am': 'am' 
+            },
+            ordinal: [
+                '1st', 
+                '2nd', 
+                '3rd', 
+                'nth'
+            ]
+        },
+        
+        //date_words = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December", "Sun", "Mon", "Tue", "Wed", "Thur", "Fri", "Sat", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"],
+        
+        getFormatChrCb = function( date_formater, locale, jsdate ) {
+            return function formatChrCb(t, s) {return date_formater[HAS](t)?date_formater[t]( jsdate, locale, formatChrCb ):s;};
+        },
+        
+        time = function( ) { return Math.floor(new Date().getTime() / 1000); },
+        
+        date = function( format, /*locale,*/ timestamp ) {
+            var jsdate = (timestamp === undefined ? new Date() : // Not provided
+                (timestamp instanceof Date) ? new Date(timestamp) : // JS Date()
+                new Date(timestamp * 1000) // UNIX timestamp (auto-convert to int)
+            );
+            return format.replace( formatChr, getFormatChrCb( date_formater, locale_date, jsdate ) );
+        },
+        
+        Tpl, Node, Alias, Tok, Op, Func, Xpresion, EMPTY_TOKEN,
         BLOCKS = 'BLOCKS', OPS = 'OPERATORS', FUNCS = 'FUNCTIONS',
         __inited = false, __configured = false
     ;
@@ -112,6 +313,7 @@
     ,T_N_OP      = Xpresion.T_N_OP     =   129
     ,T_POLY_OP   = Xpresion.T_POLY_OP  =   130
     ,T_FUN       = Xpresion.T_FUN      =   131
+    ,T_EMPTY     = Xpresion.T_EMPTY    =   1024
     ;
     
     Xpresion.Tpl = Tpl = function Tpl( tpl, replacements, compiled ) {
@@ -119,7 +321,9 @@
         if ( !(self instanceof Tpl) ) return new Tpl(tpl, replacements, compiled);
         self.id = null;
         self._renderer = null;
-        self.tpl = Tpl.multisplit( tpl||'', replacements||Tpl.defaultArgs );
+        self.tpl = replacements instanceof RegExp 
+            ? Tpl.multisplit_re(tpl||'', replacements) 
+            : Tpl.multisplit( tpl||'', replacements||Tpl.defaultArgs );
         if ( true === compiled ) self._renderer = Tpl.compile( self.tpl );
         self.fixRenderer( );
     };
@@ -281,10 +485,11 @@
         return false;
     };
 
-    Xpresion.Node = Node = function Node(type, node, children, pos) {
+    Xpresion.Node = Node = function Node(type, arity, node, children, pos) {
         var self = this;
-        if ( !(self instanceof Node) ) return new Node(type, node, children, pos);
+        if ( !(self instanceof Node) ) return new Node(type, arity, node, children, pos);
         self.type = type;
+        self.arity = arity;
         self.node = node;
         self.children = children || null;
         self.pos = pos || 0;
@@ -292,6 +497,7 @@
     Node[PROTO] = {
         constructor: Node
         ,type: null
+        ,arity: null
         ,node: null
         ,children: null
         ,pos: null
@@ -299,18 +505,20 @@
         ,op_def: null
         ,op_index: null
         ,op_next: function( op, pos, op_queue, token_queue ) {
-            var self = this, 
+            var self = this, num_args = 0,
                 is_next = (0 === self.op_parts.indexOf( op.input ));
             if ( is_next )
             {
                 if ( 0 === self.op_def[0][0] )
                 {
-                    if ( !Op.match_args(self.op_def[0][2], pos-1, op_queue, token_queue ) )
+                    num_args = Op.match_args(self.op_def[0][2], pos-1, op_queue, token_queue );
+                    if ( false === num_args )
                     {
                         is_next = false;
                     }
                     else
                     {
+                        self.arity = num_args;
                         self.op_def.shift( );
                     }
                 }
@@ -333,6 +541,7 @@
                 for (i=0; i<l; i++) c[i] && c[i].dispose();
             }
             self.type = null;
+            self.arity = null;
             self.pos = null;
             self.node = null;
             self.op_parts = null;
@@ -350,7 +559,7 @@
             ;
             for (i=0; i<l; i++) out.push(ch[i].toString(tab_tab));
             return tab + [
-            "Node("+n.type+"): " + (n.parts ? n.parts.join(' ') : n.input),
+            "Node("+n.type+","+n.arity+"): " + (n.parts ? n.parts.join(' ') : n.input),
             "Childs: [",
             tab + out.join("\n" + tab),
             "]"
@@ -360,7 +569,8 @@
     // depth-first traversal
     Node.DFT = function DFT( root, action, andDispose ) {
         /*
-            one can also implement a symbolic solver here
+            one can also implement a symbolic solver here, 
+            also known as "unification" in symbolic computation and rewrite systems
             by manipulating the tree to produce 'x' on one side 
             and the reverse operators/tokens on the other side
             i.e by transposing the top op on other side of the '=' op and using the 'associated inverse operator'
@@ -370,7 +580,7 @@
         */
         andDispose = false !== andDispose;
         action = action || Xpresion.render;
-        var node, op, o, stack = [ root ], output = [ ];
+        var node, op, arity, o, stack = [ root ], output = [ ];
         while ( stack.length )
         {
             node = stack[ 0 ];
@@ -381,11 +591,14 @@
             }
             else
             {
-               stack.shift( );
-               op = node.node;
-               o = action(op, op.arity ? output.splice(output.length-op.arity, op.arity) : [])
-               output.push( o );
-               if ( andDispose ) node.dispose( );
+                stack.shift( );
+                op = node.node;
+                arity = op.arity;
+                if ( (T_OP & op.type) && 0 === arity ) arity = 1; // have already padded with empty token
+                else if ( arity > output.length && op.arity_min <= op.arity ) arity = op.arity_min;
+                o = action(op, arity ? output.splice(output.length-arity, arity) : [])
+                output.push( o );
+                if ( andDispose ) node.dispose( );
             }
         }
         stack = null;
@@ -393,7 +606,7 @@
     };
     
     Xpresion.reduce = function( token_queue, op_queue, nop_queue, current_op, pos, err ) {
-        var entry, op, n, opc, fixity, nop = null, nop_index = 0, validation;
+        var entry, op, n, opc, fixity, nop = null, nop_index = 0, validation, arity;
         /*
             n-ary operatots (eg ternary) or composite operators
             as operators with multi-parts
@@ -424,7 +637,7 @@
             if ( T_N_OP === opc.type )
             {
                 validation = opc.validate(pos, op_queue, token_queue);
-                if ( !validation[0] )
+                if ( false === validation[0] )
                 {
                     // operator is not valid in current state
                     err.err = true;
@@ -432,6 +645,7 @@
                     return false;
                 }
                 n = opc.node(null, pos, op_queue, token_queue);
+                n.arity = validation[0];
                 nop_queue.unshift( n );
                 op_queue.unshift( n );
             }
@@ -450,7 +664,10 @@
                     while ( op_queue.length > nop_index )
                     {
                         entry = op_queue.shift( ); op = entry.node;
-                        n = op.node(token_queue.splice(token_queue.length-op.arity, op.arity), entry.pos);
+                        arity = op.arity;
+                        if ( (T_OP & op.type) && 0 === arity ) arity = 1; // have already padded with empty token
+                        else if ( arity > token_queue.length && op.arity_min <= op.arity ) arity = op.arity_min;
+                        n = op.node(arity ? token_queue.splice(token_queue.length-arity, arity) : [], entry.pos);
                         token_queue.push( n );
                     }
                     
@@ -470,7 +687,7 @@
                 else
                 {
                     validation = opc.validate(pos, op_queue, token_queue);
-                    if ( !validation[0] )
+                    if ( false === validation[0] )
                     {
                         // operator is not valid in current state
                         err.err = true;
@@ -484,14 +701,19 @@
                 {
                     // postfix assumed to be already in correct order, 
                     // no re-structuring needed
-                    n = opc.node(token_queue.splice(token_queue.length-opc.arity, opc.arity), pos);
+                    if ( (arity = opc.arity) > token_queue.length && opc.arity_min <= token_queue.length ) arity = opc.arity_min;
+                    n = opc.node(arity ? token_queue.splice(token_queue.length-arity, arity) : [], pos);
                     token_queue.push( n );
                 }
                 else if ( PREFIX === fixity )
                 {
                     // prefix assumed to be already in reverse correct order, 
                     // just push to op queue for later re-ordering
-                    op_queue.unshift( Node(opc.otype, opc, null, pos) );
+                    op_queue.unshift( Node(opc.otype, opc.arity, opc, null, pos) );
+                    if ( (/*T_FUN*/T_OP & opc.type) && (0 === opc.arity) ) 
+                    {
+                        token_queue.push(EMPTY_TOKEN.node(null, pos+1));
+                    }
                 }
                 else/* if ( INFIX === fixity )*/
                 {
@@ -506,7 +728,10 @@
                             op.associativity < 0))))
                         )
                         {
-                            n = op.node(token_queue.splice(token_queue.length-op.arity, op.arity), entry.pos);
+                            arity = op.arity;
+                            if ( (T_OP & op.type) && 0 === arity ) arity = 1; // have already padded with empty token
+                            else if ( arity > token_queue.length && op.arity_min <= op.arity ) arity = op.arity_min;
+                            n = op.node(arity ? token_queue.splice(token_queue.length-arity, arity) : [], entry.pos);
                             token_queue.push( n );
                         }
                         else
@@ -515,7 +740,7 @@
                             break;
                         }
                     }
-                    op_queue.unshift( Node(opc.otype, opc, null, pos) );
+                    op_queue.unshift( Node(opc.otype, opc.arity, opc, null, pos) );
                 }
             }
         }
@@ -523,8 +748,11 @@
         {
             while ( op_queue.length )
             {
-                entry = op_queue.shift( ); op = entry.node;
-                n = op.node(token_queue.splice(token_queue.length-op.arity, op.arity), entry.pos);
+                entry = op_queue.shift( ); op = entry.node; 
+                arity = op.arity;
+                if ( (T_OP & op.type) && 0 === arity ) arity = 1; // have already padded with empty token
+                else if ( arity > token_queue.length && op.arity_min <= op.arity ) arity = op.arity_min;
+                n = op.node(arity ? token_queue.splice(token_queue.length-arity, arity) : [], entry.pos);
                 token_queue.push( n );
             }
         }
@@ -777,6 +1005,7 @@
         
     Xpresion.render = function( tok, args ) { 
         return tok.render( args ); 
+        //return Tok.render(tok, args);
     };
     
     /*Xpresion.evaluate = function( tok, args ) { 
@@ -865,12 +1094,14 @@
         self.priority = 1000;
         self.parity = 0;
         self.arity = 0;
+        self.arity_min = 0;
+        self.arity_max = 0;
         self.associativity = DEFAULT;
         self.fixity = INFIX;
         self.parenthesize = false;
         self.revert = false;
     };
-    Tok.render = function( t ) { return (t instanceof Tok) ? t.render() : String(t); };
+    Tok.render = function( t, args ) { return (t instanceof Tok) ? t.render(args) : String(t); };
     Tok[PROTO] = {
         constructor: Tok
         
@@ -881,6 +1112,8 @@
         ,priority: 1000
         ,parity: 0
         ,arity: 0
+        ,arity_min: 0
+        ,arity_max: 0
         ,associativity: DEFAULT
         ,fixity: INFIX
         ,parenthesize: false
@@ -895,6 +1128,8 @@
             self.priority = null;
             self.parity = null;
             self.arity = null;
+            self.arity_min = null;
+            self.arity_max = null;
             self.associativity = null;
             self.fixity = null;
             self.parenthesize = null;
@@ -932,12 +1167,13 @@
             return null;
         }
         ,node: function( args, pos ) {
-            return Node(this.type, this, !!args ? args : null, pos)
+            return Node(this.type, this.arity, this, !!args ? args : null, pos)
         }
         ,toString: function( ) {
             return String(this.output);
         }
     };
+    EMPTY_TOKEN = Xpresion.EMPTY_TOKEN = Tok(T_EMPTY, '', '');
     
     Xpresion.Op = Op = function Op( input, fixity, associativity, priority, /*arity,*/ output, otype, ofixity ) {
         var self = this;
@@ -958,6 +1194,8 @@
         self.associativity = associativity || DEFAULT;
         self.priority = priority || 1000;
         self.arity = opdef[3];
+        self.arity_min = opdef[4];
+        self.arity_max = opdef[5];
         //self.arity = arity || 0;
         self.otype = undef !== otype ? otype : T_DFT;
         self.ofixity = undef !== ofixity ? ofixity : self.fixity;
@@ -973,7 +1211,8 @@
         ];
     };
     Op.parse_definition = function( op_def ) {
-        var parts = [], op = [], arity = 0, type, i;
+        var parts = [], op = [], num_args,
+            arity = 0, arity_min = 0, arity_max = 0, type, i;
         if ( is_string(op_def) )
         {
             // assume infix, arity = 2;
@@ -993,27 +1232,31 @@
             else
             {
                 op.push([0, i, op_def[i]]);
-                arity += op_def[i];
+                num_args = Abs(op_def[i]);
+                arity += num_args;
+                arity_max += num_args;
+                arity_min += op_def[i];
             }
         }
         if ( 1 === parts.length && 1 === op.length )
         {
             op = [[0, 0, 1], [1, 1, parts[0]], [0, 2, 1]];
-            arity = 2; type = T_OP;
+            arity_min = arity_max = arity = 2; type = T_OP;
         }
         else
         {
             type = parts.length > 1 ? T_N_OP : T_OP;
         }
-        return [type, op, parts, arity];
+        return [type, op, parts, arity, Max(0, arity_min), arity_max];
     };
     Op.match_args = function( expected_args, args_pos, op_queue, token_queue ) {
         var tl = token_queue.length,
             //ol = op_queue.length,
             t = tl-1, /*o = 0,*/ num_args = 0,
+            num_expected_args = Abs(expected_args),
             /*p1,*/ p2, INF = -10
         ;
-        while (num_args < expected_args || t >= 0 /*|| o < ol*/ )
+        while (num_args < num_expected_args || t >= 0 /*|| o < ol*/ )
         {
             //p1 = o < ol ? op_queue[o].pos : INF;
             p2 = t >= 0 ? token_queue[t].pos : INF;
@@ -1031,7 +1274,7 @@
             }
             else break;
         }
-        return num_args >= expected_args;
+        return num_args >= num_expected_args ? num_expected_args : (expected_args <= 0 ? 0 : false);
     };
     Op[PROTO] = Extend( Tok[PROTO] );
     Op[PROTO].otype = null;
@@ -1114,16 +1357,14 @@
     };
     Op[PROTO].validate = function( pos, op_queue, token_queue ) {
         var self = this, opdef = self.opdef, 
-            valid = true, msg = '';
+            msg = '', num_args = 0;
         if ( 0 === opdef[0][0] ) // expecting argument(s)
         {
-            if ( !Op.match_args(opdef[0][2], pos-1, op_queue, token_queue ) )
-            {
-                valid = false;
+            num_args = Op.match_args(opdef[0][2], pos-1, op_queue, token_queue );
+            if ( false === num_args )
                 msg = 'Operator "' + self.input + '" expecting ' + opdef[0][2] + ' prior argument(s)';
-            }
         }
-        return [valid, msg];
+        return [num_args, msg];
     };
     Op[PROTO].node = function( args, pos ) {
         args = args || [];
@@ -1131,7 +1372,7 @@
         if ( self.revert ) args.reverse( );
         if ( (T_DUM === otype) && args.length ) otype = args[ 0 ].type;
         else if ( args.length ) args[0].type = otype;
-        n = Node(otype, self, args, pos);
+        n = new Node(otype, self.arity, self, args, pos);
         if ( (T_N_OP === self.type) && (arguments.length > 2) )
         {
             n.op_parts = self.parts.slice(1);
@@ -1141,10 +1382,10 @@
         return n;
     };
     
-    Xpresion.Func = Func = function Func( input, output, otype, priority, associativity, fixity ) {
+    Xpresion.Func = Func = function Func( input, output, otype, priority, arity, associativity, fixity ) {
         var self = this;
-        if ( !(self instanceof Func) ) return new Func(input, output, otype, priority, associativity, fixity);
-        Op.call(self, is_string(input) ? [input, 1] : input, PREFIX, associativity||RIGHT, priority||5, /*1,*/ output, otype, fixity||PREFIX);
+        if ( !(self instanceof Func) ) return new Func(input, output, otype, priority, arity, associativity, fixity);
+        Op.call(self, is_string(input) ? [input, undef!==arity?arity:1] : input, PREFIX, associativity||RIGHT, priority||1, /*1,*/ output, otype, fixity||PREFIX);
         self.type = T_FUN;
     };
     Func[PROTO] = Extend( Op[PROTO] );
@@ -1356,6 +1597,8 @@
         ,'ary_merge'   :   function(a1, a2){return [].concat(a1,a2);}
         ,'match'  :   function( str, regex ){ return regex.test( str ); }
         ,'contains':  function( o, i ){return (o.substr||o.pop) ? (-1 < o.indexOf(i)) : o.hasOwnProperty(i);}
+        ,'time':  time
+        ,'date':  date
         });
         __inited = true;
         if ( true === andConfigure ) Xpresion.defaultConfiguration( );
@@ -1370,14 +1613,15 @@
      symbol     input           ,fixity     ,associativity  ,priority   ,output     ,output_type
     --------------------------------------------------------------------------------------------------*/
                 // bra-kets as n-ary operators
+                // negative number of arguments, indicate optional arguments (experimental)
      '('    :   Op(
-                ['(',1,')']     ,POSTFIX    ,RIGHT          ,1          ,'$0'       ,T_DUM 
+                ['(',-1,')']    ,POSTFIX    ,RIGHT          ,0          ,'$0'       ,T_DUM 
                 )
-    ,')'    :   Op([1,')'])
+    ,')'    :   Op([-1,')'])
     ,'['    :   Op(
                 ['[',1,']']     ,POSTFIX    ,RIGHT          ,2          ,'[$0]'     ,T_ARY 
                 )
-    ,']'    :   Op([1,']'])
+    ,']'    :   Op([-1,']'])
     ,','    :   Op(
                 [1,',',1]       ,INFIX      ,LEFT           ,3          ,'$0,$1'    ,T_DFT 
                 )
@@ -1465,6 +1709,9 @@
     ,'!='   :   Op(
                 [1,'!=',1]      ,INFIX      ,LEFT           ,40         ,'($0!=$1)'     ,T_BOL 
                 )
+    ,'is'   :   Op(
+                [1,'is',1]      ,INFIX      ,LEFT           ,40         ,'($0===$1)'    ,T_BOL 
+                )
     ,'matches': Op(
                 [1,'matches',1] ,INFIX      ,NONE           ,40         ,'$0.test($1)'  ,T_BOL 
                 )
@@ -1492,9 +1739,9 @@
     });
     
     Xpresion.defFunc({
-    /*-----------------------------------------------------------------------------------
-    symbol              input   ,output             ,output_type    ,priority(default 5)
-    ------------------------------------------------------------------------------------*/
+    /*-------------------------------------------------------------------------------------------------------
+    symbol              input   ,output             ,output_type    ,priority(default 1)    ,arity(default 1)
+    ---------------------------------------------------------------------------------------------------------*/
      'min'      : Func('min'    ,'Math.min($0)'     ,T_NUM  )
     ,'max'      : Func('max'    ,'Math.max($0)'     ,T_NUM  )
     ,'pow'      : Func('pow'    ,'Math.pow($0)'     ,T_NUM  )
@@ -1505,6 +1752,8 @@
     ,'clamp'    : Func('clamp'  ,'Fn.clamp($0)'     ,T_NUM  )
     ,'sum'      : Func('sum'    ,'Fn.sum($0)'       ,T_NUM  )
     ,'avg'      : Func('avg'    ,'Fn.avg($0)'       ,T_NUM  )
+    ,'time'     : Func('time'   ,'Fn.time()'        ,T_NUM          ,1                      ,0  )
+    ,'date'     : Func('date'   ,'Fn.date($0)'      ,T_STR  )
     /*---------------------------------------
                     aliases
      ----------------------------------------*/

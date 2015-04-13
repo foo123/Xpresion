@@ -3,12 +3,12 @@
 #
 #   Xpresion
 #   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-#   @version: 0.6
+#   @version: 0.6.1
 #
 #   https://github.com/foo123/Xpresion
 #
 ##
-import re, math, pprint 
+import re, time, datetime, calendar, math, pprint 
 
 # static
 CNT = 0
@@ -143,6 +143,73 @@ def evaluator_factory(evaluator_str,Fn,Cache):
     return evaluator_factory(Fn,Cache)
 
 
+def _get_ordinal_suffix( n ):
+    # adapted from http://brandonwamboldt.ca/python-php-date-class-335/
+    return {1: 'st', 2: 'nd', 3: 'rd'}.get(4 if 10 <= n % 100 < 20 else n % 10, "th")
+
+def php_time( ):
+    return int(time.time())
+
+def php_date( format, time=None ):
+    # http://php.net/manual/en/datetime.formats.date.php
+    # http://strftime.org/
+    # adapted from http://brandonwamboldt.ca/python-php-date-class-335/
+    if time is None: time = php_time()
+    time  = datetime.datetime.fromtimestamp(time)
+    timeStr = ''
+
+    replacements = {}
+
+    """ Day """
+    replacements['d'] = str( time.day ).zfill(2)
+    replacements['D'] = calendar.day_abbr[ time.weekday() ]
+    replacements['j'] = str( time.day )
+    replacements['l'] = calendar.day_name[ time.weekday() ]
+    replacements['S'] = _get_ordinal_suffix( time.day )
+    replacements['w'] = str( time.weekday() )
+    replacements['z'] = str( time.timetuple().tm_yday )
+    
+    """ Week """
+    replacements['W'] = str( time.isocalendar()[1] )
+    
+    """ Month """
+    replacements['F'] = calendar.month_name[ time.month ]
+    replacements['m'] = str( time.month ).zfill(2)
+    replacements['M'] = calendar.month_abbr[ time.month ]
+    replacements['n'] = str( time.month )
+    replacements['t'] = str( calendar.monthrange(time.year, time.month)[1] )
+    
+    """ Year """
+    replacements['L'] = str(int( calendar.isleap(time.year) ))
+    replacements['Y'] = str( time.year )
+    replacements['y'] = str( time.year )[2:]
+    
+    """ Time """
+    replacements['a'] = time.strftime("%p").lower()
+    replacements['A'] = time.strftime("%p")
+    replacements['g'] = str( int(time.strftime("%I")) )
+    replacements['G'] = str( int(time.strftime("%H")) )
+    replacements['h'] = time.strftime("%I")
+    replacements['H'] = time.strftime("%H")
+    replacements['i'] = str( time.minute ).zfill(2)
+    replacements['s'] = str( time.second ).zfill(2)
+    replacements['u'] = str( time.microsecond )
+    
+    """ Timezone """
+    replacements['e'] = "" #_self.get_timezone()
+    replacements['I'] = str( time.dst() )
+    
+    #for regex, replace in replacements.items():
+    #    format = format.replace(regex, replace)
+    newformat = ''
+    for c in format:
+        if c in replacements:
+            newformat += replacements[c]
+        else:
+            newformat += c
+
+    return newformat
+
 def parse_re_flags(s,i,l):
     flags = ''
     has_i = False
@@ -197,6 +264,9 @@ T_OP        =   128
 T_N_OP      =   129
 T_POLY_OP   =   130
 T_FUN       =   131
+T_EMPTY     =   1024
+
+T_REGEXP = type(NEWLINE)
 
 class Tpl:
     
@@ -301,12 +371,17 @@ class Tpl:
     defaultArgs = {'$-5':-5,'$-4':-4,'$-3':-3,'$-2':-2,'$-1':-1,'$0':0,'$1':1,'$2':2,'$3':3,'$4':4,'$5':5}
     
     def __init__(self, tpl='', replacements=None, compiled=False):
+        global T_REGEXP
+        
         self.id = None
         self.tpl = None
         self._renderer = None
         
-        self.tpl = Tpl.multisplit( tpl, Tpl.defaultArgs if not replacements else replacements )
-        if True == compiled: self._renderer = Tpl.compile( self.tpl )
+        if replacements and isinstance(replacements, T_REGEXP):
+            self.tpl = Tpl.multisplit_re( tpl, replacements )
+        else:
+            self.tpl = Tpl.multisplit( tpl, Tpl.defaultArgs if not replacements else replacements )
+        if compiled is True: self._renderer = Tpl.compile( self.tpl )
 
     def __del__(self):
         self.dispose()
@@ -346,7 +421,7 @@ class Node:
         #    (easy when only one unknown in one state, more difficult for many unknowns 
         #    or one unknown in different states, e.g x and x^2 etc..)
         #
-        andDispose = (False != andDispose)
+        andDispose = bool(andDispose is not False)
         if not action: action = Xpresion.render
         stack = [ root ]
         output = [ ]
@@ -360,7 +435,10 @@ class Node:
             else:
                 stack.pop(0)
                 op = node.node
-                o = action(op, array_splice(output, -op.arity, op.arity))
+                arity = op.arity
+                if (T_OP & op.type) and 0 == arity: arity = 1 # have already padded with empty token
+                elif arity > len(output) and op.arity_min <= op.arity: arity = op.arity_min
+                o = action(op, array_splice(output, -arity, arity))
                 output.append( o )
                 if andDispose: node.dispose( )
 
@@ -368,8 +446,9 @@ class Node:
         stack = None
         return output[ 0 ]
     
-    def __init__(self, type, node, children=None, pos=0):
+    def __init__(self, type, arity, node, children=None, pos=0):
         self.type = type
+        self.arity = arity
         self.node = node
         self.children = children
         self.pos = pos
@@ -387,6 +466,7 @@ class Node:
                 if ci: ci.dispose( )
         
         self.type = None
+        self.arity = None
         self.pos = None
         self.node = None
         self.op_parts = None
@@ -397,6 +477,7 @@ class Node:
     
     
     def op_next(self, op, pos, op_queue, token_queue):
+        num_args = 0
         next_index = -1
         try:
             next_index = self.op_parts.index( op.input )
@@ -405,9 +486,11 @@ class Node:
         is_next = (0 == next_index)
         if is_next: 
             if 0 == self.op_def[0][0]:
-                if not Op.match_args(self.op_def[0][2], pos-1, op_queue, token_queue ):
+                num_args = Op.match_args(self.op_def[0][2], pos-1, op_queue, token_queue )
+                if num_args is False:
                     is_next = False
                 else:
+                    self.arity = num_args
                     self.op_def.pop(0)
         
         if is_next: 
@@ -472,6 +555,8 @@ class Tok:
         self.priority = 1000
         self.parity = 0
         self.arity = 0
+        self.arity_min = 0
+        self.arity_max = 0
         self.associativity = DEFAULT
         self.fixity = INFIX
         self.parenthesize = False
@@ -488,6 +573,8 @@ class Tok:
         self.priority = None
         self.parity = None
         self.arity = None
+        self.arity_min = None
+        self.arity_max = None
         self.associativity = None
         self.fixity = None
         self.parenthesize = None
@@ -519,7 +606,7 @@ class Tok:
         return lparen + out + rparen
     
     def node(self, args=None, pos=0):
-        return Node(self.type, self, args if args else None, pos)
+        return Node(self.type, self.arity, self, args if args else None, pos)
     
     def __str__(self):
         return str(self.output)
@@ -537,6 +624,8 @@ class Op(Tok):
         parts = []
         op = []
         arity = 0
+        arity_min = 0
+        arity_max = 0
         if isinstance(op_def, str):
             # assume infix, arity = 2;
             op_def = [1,op_def,1]
@@ -548,29 +637,35 @@ class Op(Tok):
                 op.append([1, i, op_def[i]])
             else:
                 op.append([0, i, op_def[i]])
-                arity += op_def[i]
+                num_args = abs(op_def[i])
+                arity += num_args
+                arity_max += num_args
+                arity_min += op_def[i]
         
         if 1 == len(parts) and 1 == len(op):
             op = [[0, 0, 1], [1, 1, parts[0]], [0, 2, 1]]
             arity = 2
+            arity_min = 2
+            arity_max = 2
             type = T_OP
         else:
             type = T_N_OP if len(parts) > 1 else T_OP
-        return [type, op, parts, arity]
+        return [type, op, parts, arity, max(0, arity_min), arity_max]
     
     def match_args(expected_args, args_pos, op_queue, token_queue):
         tl = len(token_queue)
         t = tl-1
         num_args = 0
+        num_expected_args = abs(expected_args)
         INF = -10
-        while num_args < expected_args or t >= 0:
+        while num_args < num_expected_args or t >= 0:
             p2 = INF if t < 0 else token_queue[t].pos
             if args_pos == p2:
                 num_args+=1
                 args_pos-=1
                 t-=1
             else: break
-        return (num_args >= expected_args)
+        return num_expected_args if num_args >= num_expected_args else (0 if expected_args <= 0 else False)
     
     def __init__(self, input='', fixity=None, associativity=None, priority=1000, output='', otype=None, ofixity=None):
         opdef = Op.parse_definition( input )
@@ -666,13 +761,13 @@ class Op(Tok):
         return Tok(output_type, out, out)
     
     def validate(self, pos, op_queue, token_queue ):
-        valid = True
+        num_args = 0
         msg = ''
         if 0 == self.opdef[0][0]: # expecting argument(s)
-            if not Op.match_args(self.opdef[0][2], pos-1, op_queue, token_queue ):
-                valid = False
+            num_args = Op.match_args(self.opdef[0][2], pos-1, op_queue, token_queue )
+            if num_args is False:
                 msg = 'Operator "' + str(self.input) + '" expecting ' + str(self.opdef[0][2]) + ' prior argument(s)'
-        return [valid, msg]
+        return [num_args, msg]
     
     def node(self, args=None, pos=0, op_queue=None, token_queue=None):
         otype = self.otype
@@ -680,7 +775,7 @@ class Op(Tok):
         if self.revert: args = args[::-1]
         if (T_DUM == otype) and len(args): otype = args[ 0 ].type
         elif len(args): args[0].type = otype
-        n = Node(otype, self, args, pos)
+        n = Node(otype, self.arity, self, args, pos)
         if T_N_OP == self.type and None != op_queue:
             n.op_parts = self.parts[1:]
             n.op_def = self.opdef[2:] if 0 == self.opdef[0][0] else self.opdef[1:]
@@ -689,8 +784,8 @@ class Op(Tok):
 
 class Func(Op):
     
-    def __init__(self, input='', output='', otype=None, priority=5, associativity=None, fixity=None):
-        super(Func, self).__init__([input, 1] if isinstance(input, str) else input, PREFIX, associativity if None!= associativity else RIGHT, priority, output, otype, fixity if None!=fixity else PREFIX)
+    def __init__(self, input='', output='', otype=None, priority=1, arity=1, associativity=None, fixity=None):
+        super(Func, self).__init__([input, arity] if isinstance(input, str) else input, PREFIX, associativity if None!= associativity else RIGHT, priority, output, otype, fixity if None!=fixity else PREFIX)
         self.type = T_FUN
     
     def __del__(self):
@@ -700,6 +795,9 @@ class Func(Op):
 class Fn:
     INF = float("inf")
     NAN = float("nan")
+    
+    time = php_time
+    date = php_date
     
     # function implementations (can also be overriden per instance/evaluation call)
     def pow(base, exponent):
@@ -765,7 +863,7 @@ class Xpresion:
     https://github.com/foo123/Xpresion
     """
     
-    VERSION = "0.6"
+    VERSION = "0.6.1"
     
     COMMA       = COMMA
     LPAREN      = LPAREN
@@ -794,6 +892,9 @@ class Xpresion:
     T_N_OP      = T_N_OP   
     T_POLY_OP   = T_POLY_OP
     T_FUN       = T_FUN    
+    T_EMPTY     = T_EMPTY
+    
+    EMPTY_TOKEN = Tok(T_EMPTY, '', '')
     
     _inited = False
     _configured = False
@@ -838,12 +939,13 @@ class Xpresion:
             # push to nop_queue/op_queue
             if T_N_OP == opc.type:
                 validation = opc.validate(pos, op_queue, token_queue)
-                if not validation[0]:
+                if validation[0] is False:
                     # operator is not valid in current state
                     err['err'] = True
                     err['msg'] = validation[1]
                     return False
                 n = opc.node(None, pos, op_queue, token_queue)
+                n.arity = validation[0]
                 nop_queue.insert( 0, n )
                 op_queue.insert( 0, n )
             
@@ -859,7 +961,10 @@ class Xpresion:
                     while len(op_queue) > nop_index:
                         entry = op_queue.pop(0) 
                         op = entry.node
-                        n = op.node(array_splice(token_queue, -op.arity, op.arity), entry.pos)
+                        arity = op.arity
+                        if (T_OP & op.type) and 0 == arity: arity = 1 # have already padded with empty token
+                        elif arity > len(token_queue) and op.arity_min <= op.arity: arity = op.arity_min
+                        n = op.node(array_splice(token_queue, -arity, arity), entry.pos)
                         token_queue.append( n )
                     
                     
@@ -873,7 +978,7 @@ class Xpresion:
                         return
                 else:
                     validation = opc.validate(pos, op_queue, token_queue)
-                    if not validation[0]:
+                    if validation[0] is False:
                         # operator is not valid in current state
                         err['err'] = True
                         err['msg'] = validation[1]
@@ -884,14 +989,18 @@ class Xpresion:
                 if POSTFIX == fixity:
                     # postfix assumed to be already in correct order, 
                     # no re-structuring needed
-                    n = opc.node(array_splice(token_queue, -opc.arity, opc.arity), pos)
+                    arity = opc.arity
+                    if arity > len(token_queue) and opc.arity_min <= len(token_queue): arity = opc.arity_min
+                    n = opc.node(array_splice(token_queue, -arity, arity), pos)
                     token_queue.append( n )
                 
                 elif PREFIX == fixity:
                     # prefix assumed to be already in reverse correct order, 
                     # just push to op queue for later re-ordering
-                    op_queue.insert( 0, Node(opc.otype, opc, None, pos) )
-                
+                    op_queue.insert( 0, Node(opc.otype, opc.arity, opc, None, pos) )
+                    if (T_OP & opc.type) and (0 == opc.arity):
+                        token_queue.append(Xpresion.EMPTY_TOKEN.node(None, pos+1))
+                    
                 else: # if INFIX == fixity:
                     while len(op_queue) > nop_index:
                     
@@ -901,20 +1010,26 @@ class Xpresion:
                         if (op.priority < opc.priority) or (op.priority == opc.priority and (op.associativity < opc.associativity or (op.associativity == opc.associativity and op.associativity < 0))):
                         
                         
-                            n = op.node(array_splice(token_queue, -op.arity, op.arity), entry.pos)
+                            arity = op.arity
+                            if (T_OP & op.type) and 0 == arity: arity = 1 # have already padded with empty token
+                            elif arity > len(token_queue) and op.arity_min <= op.arity: arity = op.arity_min
+                            n = op.node(array_splice(token_queue, -arity, arity), entry.pos)
                             token_queue.append( n )
                         
                         else:
                             op_queue.insert( 0, entry )
                             break
                         
-                    op_queue.insert( 0, Node(opc.otype, opc, None, pos) )
+                    op_queue.insert( 0, Node(opc.otype, opc.arity, opc, None, pos) )
                 
         else:
             while len(op_queue):
                 entry = op_queue.pop(0) 
                 op = entry.node
-                n = op.node(array_splice(token_queue, -op.arity, op.arity), entry.pos)
+                arity = op.arity
+                if (T_OP & op.type) and 0 == arity: arity = 1 # have already padded with empty token
+                elif arity > len(token_queue) and op.arity_min <= op.arity: arity = op.arity_min
+                n = op.node(array_splice(token_queue, -arity, arity), entry.pos)
                 token_queue.append( n )
             
 
@@ -922,7 +1037,7 @@ class Xpresion:
         p = delim
         esc = False
         ch = ''
-        is_escaped = bool(False != is_escaped)
+        is_escaped = bool(is_escaped is not False)
         i += 1
         while i < l:
             ch = s[i] 
@@ -964,7 +1079,7 @@ class Xpresion:
             if block: # string or regex or date ('"`#)
             
                 v = block['parse'](expr, i, l, ch)
-                if False != v:
+                if v is not False:
                 
                     i += len(v)
                     if 'rest' in block:
@@ -979,7 +1094,7 @@ class Xpresion:
                     i += len(block_rest)
                     
                     t = xpr.t_block( v, block['type'], block_rest )
-                    if False != t:
+                    if t is not False:
                     
                         t_index+=1
                         AST.append( t.node(None, t_index) )
@@ -1001,7 +1116,7 @@ class Xpresion:
             if m: # number
             
                 t = xpr.t_liter( m.group( 1 ), T_NUM )
-                if False != t:
+                if t is not False:
                 
                     t_index+=1
                     AST.append( t.node(None, t_index) )
@@ -1014,7 +1129,7 @@ class Xpresion:
             if m: # ident, reserved, function, operator, etc..
             
                 t = xpr.t_liter( m.group( 1 ), T_IDE ) # reserved keyword
-                if False != t:
+                if t is not False:
                 
                     t_index+=1
                     AST.append( t.node(None, t_index) )
@@ -1022,7 +1137,7 @@ class Xpresion:
                     continue
                 
                 t = xpr.t_op( m.group( 1 ) ) # (literal) operator
-                if False != t:
+                if t is not False:
                 
                     t_index+=1
                     reduce( AST, OPS, NOPS, t, t_index, errors )
@@ -1036,7 +1151,7 @@ class Xpresion:
                 if t_var_is_also_ident:
                 
                     t = xpr.t_var( m.group( 1 ) ) # variables are also same identifiers
-                    if False != t:
+                    if t is not False:
                     
                         t_index+=1
                         AST.append( t.node(None, t_index) )
@@ -1053,10 +1168,10 @@ class Xpresion:
                 while len(v) > 0: # try to match maximum length op/func
                 
                     t = xpr.t_op( v ) # function, (non-literal) operator
-                    if False != t: break
+                    if t is not False: break
                     v = v[0:-1]
                 
-                if False != t:
+                if t is not False:
                 
                     t_index+=1
                     reduce( AST, OPS, NOPS, t, t_index, errors )
@@ -1074,7 +1189,7 @@ class Xpresion:
                 if m: # variables
                 
                     t = xpr.t_var( m.group( 1 ) )
-                    if False != t:
+                    if t is not False:
                     
                         t_index+=1
                         AST.append( t.node(None, t_index) )
@@ -1087,7 +1202,7 @@ class Xpresion:
             if m: # other non-space tokens/symbols..
             
                 t = xpr.t_liter( m.group( 1 ), T_LIT ) # reserved keyword
-                if False != t:
+                if t is not False:
                 
                     t_index+=1
                     AST.append( t.node(None, t_index) )
@@ -1095,7 +1210,7 @@ class Xpresion:
                     continue
                 
                 t = xpr.t_op( m.group( 1 ) ) # function, other (non-literal) operator
-                if False != t:
+                if t is not False:
                 
                     t_index+=1
                     reduce( AST, OPS, NOPS, t, t_index, errors )
@@ -1323,7 +1438,7 @@ class Xpresion:
     def t_op(self, token):
         op = False
         op = Alias.get_entry(self.FUNCTIONS, token)
-        if False == op: op = Alias.get_entry(self.OPERATORS, token)
+        if op is False: op = Alias.get_entry(self.OPERATORS, token)
         return op
 
     def t_tok(self, token): 
@@ -1348,14 +1463,15 @@ class Xpresion:
         # symbol     input       ,fixity     ,associativity  ,priority   ,output     ,output_type
         #----------------------------------------------------------------------------------------------
                     # bra-kets as n-ary operators
+                    # negative number of arguments, indicate optional arguments (experimental)
          '('    :   Op(
-                    ['(',1,')'] ,POSTFIX    ,RIGHT          ,1          ,'$0'       ,T_DUM 
+                    ['(',-1,')'],POSTFIX    ,RIGHT          ,0          ,'$0'       ,T_DUM 
                     )
-        ,')'    :   Op([1,')'])
+        ,')'    :   Op([-1,')'])
         ,'['    :   Op(
-                    ['[',1,']'] ,POSTFIX    ,RIGHT          ,2          ,'[$0]'     ,T_ARY 
+                    ['[',-1,']'],POSTFIX    ,RIGHT          ,2          ,'[$0]'     ,T_ARY 
                     )
-        ,']'    :   Op([1,']'])
+        ,']'    :   Op([-1,']'])
         ,','    :   Op(
                     [1,',',1]   ,INFIX      ,LEFT           ,3          ,'$0,$1'    ,T_DFT 
                     )
@@ -1443,6 +1559,9 @@ class Xpresion:
         ,'!='   :   Op(
                     [1,'!=',1]  ,INFIX      ,LEFT           ,40         ,'($0!=$1)'     ,T_BOL 
                     )
+        ,'is'   :   Op(
+                    [1,'is',1]  ,INFIX      ,LEFT           ,40         ,'($0 is $1)'   ,T_BOL 
+                    )
         ,'matches': Op(
                     [1,'matches',1] ,INFIX  ,NONE           ,40         ,'Fn.match($1,$0)'  ,T_BOL 
                     )
@@ -1470,9 +1589,9 @@ class Xpresion:
         })
 
         Xpresion.defFunc({
-        #------------------------------------------------------------------------------------
-        #symbol              input   ,output             ,output_type    ,priority(default 5)
-        #------------------------------------------------------------------------------------
+        #-------------------------------------------------------------------------------------------------
+        #symbol              input   ,output             ,output_type    ,priority(default 1)   ,arity(default 1)
+        #-------------------------------------------------------------------------------------------------
          'min'      : Func('min'    ,'min($0)'          ,T_NUM  )
         ,'max'      : Func('max'    ,'max($0)'          ,T_NUM  )
         ,'pow'      : Func('pow'    ,'Fn.pow($0)'       ,T_NUM  )
@@ -1483,6 +1602,8 @@ class Xpresion:
         ,'clamp'    : Func('clamp'  ,'Fn.clamp($0)'     ,T_NUM  )
         ,'sum'      : Func('sum'    ,'Fn.sum($0)'       ,T_NUM  )
         ,'avg'      : Func('avg'    ,'Fn.avg($0)'       ,T_NUM  )
+        ,'time'     : Func('time'   ,'Fn.time()'        ,T_NUM          ,1                  ,0  )
+        ,'date'     : Func('date'   ,'Fn.date($0)'      ,T_STR  )
         #---------------------------------------
         #                aliases
         #----------------------------------------

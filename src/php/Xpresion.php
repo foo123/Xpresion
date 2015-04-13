@@ -3,7 +3,7 @@
 *
 *   Xpresion
 *   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-*   @version: 0.6
+*   @version: 0.6.1
 *
 *   https://github.com/foo123/Xpresion
 *
@@ -212,7 +212,9 @@ class XpresionTpl
         $this->_renderer = null;
         
         if ( !$replacements ) $replacements = self::$defaultArgs;
-        $this->tpl = self::multisplit( $tpl, $replacements );
+        $this->tpl = is_string($replacements) 
+                ? self::multisplit_re( $tpl, $replacements)
+                : self::multisplit( $tpl, !$replacements ?self::$defaultArgs:$replacements);
         if (true === $compiled) $this->_renderer = self::compile( $this->tpl );
     }
 
@@ -283,7 +285,10 @@ class XpresionNode
             {
                 array_shift($stack);
                 $op = $node->node;
-                $o = call_user_func($action, $op, (array)array_splice($output, -$op->arity, $op->arity));
+                $arity = $op->arity;
+                if ( (Xpresion::T_OP & $op->type) && 0 === $arity ) $arity = 1; // have already padded with empty token
+                elseif ( $arity > count($output) && $op->arity_min <= $op->arity ) $arity = $op->arity_min;
+                $o = call_user_func($action, $op, (array)array_splice($output, -$arity, $arity));
                 $output[] = $o;
                 if ($andDispose) $node->dispose( );
             }
@@ -294,6 +299,7 @@ class XpresionNode
     }
     
     public $type = null;
+    public $arity = null;
     public $pos = null;
     public $node = null;
     public $op_parts = null;
@@ -301,9 +307,10 @@ class XpresionNode
     public $op_index = null;
     public $children = null;
     
-    public function __construct($type, $node, $children=null, $pos=0)
+    public function __construct($type, $arity, $node, $children=null, $pos=0)
     {
         $this->type = $type;
+        $this->arity = $arity;
         $this->node = $node;
         $this->children = $children;
         $this->pos = $pos;
@@ -327,6 +334,7 @@ class XpresionNode
         }
         
         $this->type = null;
+        $this->arity = null;
         $this->pos = null;
         $this->node = null;
         $this->op_parts = null;
@@ -338,18 +346,21 @@ class XpresionNode
     
     public function op_next($op, $pos, &$op_queue, &$token_queue)
     {
+        $num_args = 0;
         $next_index = array_search($op->input, $this->op_parts);
         $is_next = (bool)(0 === $next_index);
         if ( $is_next )
         {
             if ( 0 === $this->op_def[0][0] )
             {
-                if ( !XpresionOp::match_args($this->op_def[0][2], $pos-1, $op_queue, $token_queue ) )
+                $num_args = XpresionOp::match_args($this->op_def[0][2], $pos-1, $op_queue, $token_queue );
+                if ( false === $num_args )
                 {
                     $is_next = false;
                 }
                 else
                 {
+                    $this->arity = $num_args;
                     array_shift($this->op_def);
                 }
             }
@@ -434,6 +445,8 @@ class XpresionTok
     public $priority = null;
     public $parity = null;
     public $arity = null;
+    public $arity_min = null;
+    public $arity_max = null;
     public $associativity = null;
     public $fixity = null;
     public $parenthesize = null;
@@ -448,6 +461,8 @@ class XpresionTok
         $this->priority = 1000;
         $this->parity = 0;
         $this->arity = 0;
+        $this->arity_min = 0;
+        $this->arity_max = 0;
         $this->associativity = Xpresion::DEFAUL;
         $this->fixity = Xpresion::INFIX;
         $this->parenthesize = false;
@@ -468,6 +483,8 @@ class XpresionTok
         $this->priority = null;
         $this->parity = null;
         $this->arity = null;
+        $this->arity_min = null;
+        $this->arity_max = null;
         $this->associativity = null;
         $this->fixity = null;
         $this->parenthesize = null;
@@ -509,7 +526,7 @@ class XpresionTok
     
     public function node($args=null, $pos=0)
     {
-        return new XpresionNode($this->type, $this, $args ? $args : null, $pos);
+        return new XpresionNode($this->type, $this->arity, $this, $args ? $args : null, $pos);
     }
     
     public function __toString()
@@ -533,6 +550,8 @@ class XpresionOp extends XpresionTok
         $parts = array(); 
         $op = array(); 
         $arity = 0;
+        $arity_min = 0;
+        $arity_max = 0;
         if ( is_string($op_def) )
         {
             // assume infix, arity = 2;
@@ -553,19 +572,22 @@ class XpresionOp extends XpresionTok
             else
             {
                 $op[] = array(0, $i, $op_def[$i]);
-                $arity += $op_def[$i];
+                $num_args = abs($op_def[$i]);
+                $arity += $num_args;
+                $arity_max += $num_args;
+                $arity_min += $op_def[$i];
             }
         }
         if ( 1 === count($parts) && 1 === count($op) )
         {
             $op = array(array(0, 0, 1), array(1, 1, $parts[0]), array(0, 2, 1));
-            $arity = 2; $type = Xpresion::T_OP;
+            $arity_min = $arity_max = $arity = 2; $type = Xpresion::T_OP;
         }
         else
         {
             $type = count($parts) > 1 ? Xpresion::T_N_OP : Xpresion::T_OP;
         }
-        return array($type, $op, $parts, $arity);
+        return array($type, $op, $parts, $arity, max(0, $arity_min), $arity_max);
     }
     
     public static function match_args( $expected_args, $args_pos, &$op_queue, &$token_queue ) 
@@ -573,8 +595,9 @@ class XpresionOp extends XpresionTok
         $tl = count($token_queue);
         $t = $tl-1; 
         $num_args = 0;
+        $num_expected_args = abs($expected_args);
         $INF = -10;
-        while ($num_args < $expected_args || $t >= 0 )
+        while ($num_args < $num_expected_args || $t >= 0 )
         {
             $p2 = $t >= 0 ? $token_queue[$t]->pos : $INF;
             if ( $args_pos === $p2 ) 
@@ -585,7 +608,7 @@ class XpresionOp extends XpresionTok
             }
             else break;
         }
-        return $num_args >= $expected_args;
+        return $num_args >= $num_expected_args ? $num_expected_args : ($expected_args <= 0 ? 0 : false);
     }
     
     public $otype = null;
@@ -609,6 +632,8 @@ class XpresionOp extends XpresionTok
         $this->associativity = null !== $associativity ? $associativity : Xpresion::DEFAUL;
         $this->priority = $priority;
         $this->arity = $opdef[3];
+        $this->arity_min = $opdef[4];
+        $this->arity_max = $opdef[5];
         //$this->arity = $arity;
         $this->otype = null !== $otype ? $otype : Xpresion::T_DFT;
         $this->ofixity = null !== $ofixity ? $ofixity : $this->fixity;
@@ -707,16 +732,16 @@ class XpresionOp extends XpresionTok
     
     public function validate($pos, &$op_queue, &$token_queue) 
     {
-        $valid = true; $msg = '';
+        $msg = ''; $num_args = 0;
         if ( 0 === $this->opdef[0][0] ) // expecting argument(s)
         {
-            if ( !self::match_args($this->opdef[0][2], $pos-1, $op_queue, $token_queue ) )
+            $num_args = self::match_args($this->opdef[0][2], $pos-1, $op_queue, $token_queue );
+            if ( false === $num_args )
             {
-                $valid = false;
                 $msg = 'Operator "' . $this->input . '" expecting ' . $this->opdef[0][2] . ' prior argument(s)';
             }
         }
-        return array($valid, $msg);
+        return array($num_args, $msg);
     }
     
     public function node($args=null, $pos=0, $op_queue=null, $token_queue=null)
@@ -726,7 +751,7 @@ class XpresionOp extends XpresionTok
         if ($this->revert) $args = array_reverse($args);
         if ((Xpresion::T_DUM === $otype) && !empty($args)) $otype = $args[ 0 ]->type;
         elseif (!empty($args)) $args[0]->type = $otype;
-        $n = new XpresionNode($otype, $this, $args, $pos);
+        $n = new XpresionNode($otype, $this->arity, $this, $args, $pos);
         if (Xpresion::T_N_OP === $this->type && null !== $op_queue)
         {
             $n->op_parts = array_slice($this->parts, 1);
@@ -739,10 +764,10 @@ class XpresionOp extends XpresionTok
 
 class XpresionFunc extends XpresionOp
 {    
-    public function __construct($input='', $output='', $otype=null, $priority=5, $associativity=null, $fixity=null)
+    public function __construct($input='', $output='', $otype=null, $priority=1, $arity=1, $associativity=null, $fixity=null)
     {
         parent::__construct(
-            is_string($input) ? array($input, 1) : $input, 
+            is_string($input) ? array($input, $arity) : $input, 
             Xpresion::PREFIX, 
             null !== $associativity ? $associativity : Xpresion::RIGHT, 
             $priority, 
@@ -863,7 +888,7 @@ class XpresionFn
 
 class Xpresion
 {
-    const VERSION = "0.6";
+    const VERSION = "0.6.1";
     
     const COMMA       =   ',';
     const LPAREN      =   '(';
@@ -892,6 +917,7 @@ class Xpresion
     const T_N_OP      =   129;
     const T_POLY_OP   =   130;
     const T_FUN       =   131;
+    const T_EMPTY     =   1024;
     
     public static $_inited = false;
     public static $_configured = false;
@@ -902,6 +928,7 @@ class Xpresion
     public static $RE_S = null;
     public static $Reserved_S = null;
     public static $Fn_S = null;
+    public static $EMPTY_TOKEN = null;
     
     public static function Tpl($tpl='', $replacements=null, $compiled=false)
     {
@@ -923,9 +950,9 @@ class Xpresion
     {
         return new XpresionOp($input, $fixity, $associativity, $priority, /*$arity,*/ $output, $otype, $ofixity);
     }
-    public static function Func($input='', $output='', $otype=null, $priority=5, $associativity=null, $fixity=null)
+    public static function Func($input='', $output='', $otype=null, $priority=1, $arity=1, $associativity=null, $fixity=null)
     {
-        return new XpresionFunc($input, $output, $otype, $priority, $associativity, $fixity);
+        return new XpresionFunc($input, $output, $otype, $priority, $arity, $associativity, $fixity);
     }
         
     public static function reduce(&$token_queue, &$op_queue, &$nop_queue, $current_op=null, $pos=0, $err=null)
@@ -963,7 +990,7 @@ class Xpresion
             if (Xpresion::T_N_OP === $opc->type)
             {
                 $validation = $opc->validate($pos, $op_queue, $token_queue);
-                if ( !$validation[0] )
+                if ( false === $validation[0] )
                 {
                     // operator is not valid in current state
                     $err->err = true;
@@ -971,6 +998,7 @@ class Xpresion
                     return false;
                 }
                 $n = $opc->node(null, $pos, $op_queue, $token_queue);
+                $n->arity = $validation[0];
                 array_unshift($nop_queue, $n);
                 array_unshift($op_queue, $n);
             }
@@ -990,7 +1018,10 @@ class Xpresion
                     {
                         $entry = array_shift($op_queue);
                         $op = $entry->node;
-                        $n = $op->node(array_splice($token_queue, -$op->arity, $op->arity), $entry->pos);
+                        $arity = $op->arity;
+                        if ( (Xpresion::T_OP & $op->type) && 0 === $arity ) $arity = 1; // have already padded with empty token
+                        elseif ( $arity > count($token_queue) && $op->arity_min <= $op->arity ) $arity = $op->arity_min;
+                        $n = $op->node(array_splice($token_queue, -$arity, $arity), $entry->pos);
                         array_push($token_queue, $n);
                     }
                     
@@ -1011,7 +1042,7 @@ class Xpresion
                 else
                 {
                     $validation = $opc->validate($pos, $op_queue, $token_queue);
-                    if ( !$validation[0] )
+                    if ( false === $validation[0] )
                     {
                         // operator is not valid in current state
                         $err->err = true;
@@ -1026,7 +1057,9 @@ class Xpresion
                 {
                     // postfix assumed to be already in correct order, 
                     // no re-structuring needed
-                    $n = $opc->node(array_splice($token_queue, -$opc->arity, $opc->arity), $pos);
+                    $arity = $opc->arity;
+                    if ( $arity > count($token_queue) && $opc->arity_min <= count($token_queue) ) $arity = $opc->arity_min;
+                    $n = $opc->node(array_splice($token_queue, -$arity, $arity), $pos);
                     array_push($token_queue, $n);
                 }
                 
@@ -1034,7 +1067,11 @@ class Xpresion
                 {
                     // prefix assumed to be already in reverse correct order, 
                     // just push to op queue for later re-ordering
-                    array_unshift($op_queue, new XpresionNode($opc->otype, $opc, null, $pos));
+                    array_unshift($op_queue, new XpresionNode($opc->otype, $opc->arity, $opc, null, $pos));
+                    if ( (/*T_FUN*/Xpresion::T_OP & $opc->type) && (0 === $opc->arity) ) 
+                    {
+                        array_push($token_queue,Xpresion::$EMPTY_TOKEN->node(null, $pos+1));
+                    }
                 }
                 
                 else // if (Xpresion::INFIX === $fixity)
@@ -1052,7 +1089,10 @@ class Xpresion
                             $op->associativity < 0)))
                         )
                         {
-                            $n = $op->node(array_splice($token_queue, -$op->arity, $op->arity), $entry->pos);
+                            $arity = $op->arity;
+                            if ( (Xpresion::T_OP & $op->type) && 0 === $arity ) $arity = 1; // have already padded with empty token
+                            elseif ( $arity > count($token_queue) && $op->arity_min <= $op->arity ) $arity = $op->arity_min;
+                            $n = $op->node(array_splice($token_queue, -$arity, $arity), $entry->pos);
                             array_push($token_queue, $n);
                         }
                         else
@@ -1061,7 +1101,7 @@ class Xpresion
                             break;
                         }
                     }    
-                    array_unshift($op_queue, new XpresionNode($opc->otype, $opc, null, $pos));
+                    array_unshift($op_queue, new XpresionNode($opc->otype, $opc->arity, $opc, null, $pos));
                 }
             }
         }        
@@ -1071,7 +1111,10 @@ class Xpresion
             {
                 $entry = array_shift($op_queue);
                 $op = $entry->node;
-                $n = $op->node(array_splice($token_queue, -$op->arity, $op->arity), $entry->pos);
+                $arity = $op->arity;
+                if ( (Xpresion::T_OP & $op->type) && 0 === $arity ) $arity = 1; // have already padded with empty token
+                elseif ( $arity > count($token_queue) && $op->arity_min <= $op->arity ) $arity = $op->arity_min;
+                $n = $op->node(array_splice($token_queue, -$arity, $arity), $entry->pos);
                 array_push($token_queue, $n);
             }
         }
@@ -1591,6 +1634,7 @@ class Xpresion
         Xpresion::$RE_S = array();
         Xpresion::$BLOCKS_S = array();
         Xpresion::$Reserved_S = array();
+        Xpresion::$EMPTY_TOKEN = Xpresion::Tok(Xpresion::T_EMPTY, '', '');
         XpresionUtils::$dummy = create_function('$Var', 'return null;');
         self::$_inited = true;
         if ( true === $andConfigure ) Xpresion::defaultConfiguration( );
@@ -1605,14 +1649,15 @@ class Xpresion
     //symbol    input               ,fixity                 ,associativity      ,priority   ,output         ,output_type
     //----------------------------------------------------------------------------------------------------------------------
                 // bra-kets as n-ary operators
+                // negative number of arguments, indicate optional arguments (experimental)
      '('    =>  Xpresion::Op(
-                array('(',1,')')    ,Xpresion::POSTFIX      ,Xpresion::RIGHT    ,1          ,'$0'           ,Xpresion::T_DUM 
+                array('(',-1,')')   ,Xpresion::POSTFIX      ,Xpresion::RIGHT    ,0          ,'$0'           ,Xpresion::T_DUM 
                 )
-    ,')'    =>  Xpresion::Op(array(1,')'))
+    ,')'    =>  Xpresion::Op(array(-1,')'))
     ,'['    =>  Xpresion::Op(
-                array('[',1,']')    ,Xpresion::POSTFIX      ,Xpresion::RIGHT    ,2          ,'array($0)'    ,Xpresion::T_ARY 
+                array('[',-1,']')   ,Xpresion::POSTFIX      ,Xpresion::RIGHT    ,2          ,'array($0)'    ,Xpresion::T_ARY 
                 )
-    ,']'    =>  Xpresion::Op(array(1,']'))
+    ,']'    =>  Xpresion::Op(array(-1,']'))
     ,','    =>  Xpresion::Op(
                 array(1,',',1)      ,Xpresion::INFIX        ,Xpresion::LEFT     ,3          ,'$0,$1'        ,Xpresion::T_DFT 
                 )
@@ -1699,6 +1744,9 @@ class Xpresion
     ,'!='   =>  Xpresion::Op(
                 array(1,'!=',1)     ,Xpresion::INFIX        ,Xpresion::LEFT     ,40         ,'($0!=$1)'     ,Xpresion::T_BOL 
                 )
+    ,'is'   =>  Xpresion::Op(
+                array(1,'is',1)     ,Xpresion::INFIX        ,Xpresion::LEFT     ,40         ,'($0===$1)'    ,Xpresion::T_BOL 
+                )
     ,'matches'=>Xpresion::Op(
                 array(1,'matches',1) ,Xpresion::INFIX       ,Xpresion::NONE     ,40         ,'$Fn->match($1,$0)'    ,Xpresion::T_BOL 
                 )
@@ -1726,9 +1774,9 @@ class Xpresion
     ));
 
     Xpresion::defFunc(array(
-    //-------------------------------------------------------------------------------------------
-    //symbol                    input       ,output             ,output_type    ,priority(default 5)
-    //-------------------------------------------------------------------------------------------
+    //----------------------------------------------------------------------------------------------------------
+    //symbol                    input       ,output             ,output_type    ,priority(default 1)    ,arity(default 1)
+    //----------------------------------------------------------------------------------------------------------
      'min'      => Xpresion::Func('min'     ,'min($0)'          ,Xpresion::T_NUM  )
     ,'max'      => Xpresion::Func('max'     ,'max($0)'          ,Xpresion::T_NUM  )
     ,'pow'      => Xpresion::Func('pow'     ,'pow($0)'          ,Xpresion::T_NUM  )
@@ -1739,6 +1787,8 @@ class Xpresion
     ,'clamp'    => Xpresion::Func('clamp'   ,'$Fn->clamp($0)'   ,Xpresion::T_NUM  )
     ,'sum'      => Xpresion::Func('sum'     ,'$Fn->sum($0)'     ,Xpresion::T_NUM  )
     ,'avg'      => Xpresion::Func('avg'     ,'$Fn->avg($0)'     ,Xpresion::T_NUM  )
+    ,'time'     => Xpresion::Func('time'    ,'time()'           ,Xpresion::T_NUM    ,1                  ,0  )
+    ,'date'     => Xpresion::Func('date'    ,'date($0)'         ,Xpresion::T_STR  )
     //---------------------------------------
     //                aliases
     //----------------------------------------

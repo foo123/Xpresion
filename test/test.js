@@ -33,6 +33,7 @@ echo(Xpresion('["a","rra","y"]').debug());
 echo(Xpresion('`^regex?`i').debug());
 echo(Xpresion('0 == 1').debug());
 echo(Xpresion('TRUE == False').debug());
+echo(Xpresion('TRUE is False').debug());
 echo(Xpresion('1+2').debug());
 echo(Xpresion('1+2+3').debug());
 echo(Xpresion('1+2*3').debug());
@@ -52,5 +53,11 @@ echo(Xpresion('1 ? : (1+2) (3+4)').debug());
 echo(Xpresion('1 ? sum(1,2) : (3+4)').debug());
 echo(Xpresion('1 ? 1+2 : (3+4)').debug());
 echo(Xpresion('1 ? (2+3) : 2 ? (3+4) : (4+5)').debug());
+echo(Xpresion('date("Y-m-d H:i:s")').debug({}));
+echo(Xpresion('time()').debug({}));
+echo(Xpresion('date("Y-m-d H:i:s", time())').debug());
+echo(Xpresion('pow(1,pow(2,3))').debug());
+echo(Xpresion('pow(pow(2,3),4)').debug());
+echo(Xpresion('pow(pow(1,2),pow(2,3))').debug());
 
 

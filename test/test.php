@@ -35,6 +35,7 @@ echo_(Xpresion::_('["a","rra","y"]')->debug());
 echo_(Xpresion::_('`^regex?`i')->debug());
 echo_(Xpresion::_('0 == 1')->debug());
 echo_(Xpresion::_('TRUE == False')->debug());
+echo_(Xpresion::_('TRUE is False')->debug());
 echo_(Xpresion::_('1+2')->debug());
 echo_(Xpresion::_('1+2+3')->debug());
 echo_(Xpresion::_('1+2*3')->debug());
@@ -54,4 +55,10 @@ echo_(Xpresion::_('1 ? : (1+2) (3+4)')->debug());
 echo_(Xpresion::_('1 ? sum(1,2) : (3+4)')->debug());
 echo_(Xpresion::_('1 ? 1+2 : (3+4)')->debug());
 echo_(Xpresion::_('1 ? (2+3) : 2 ? (3+4) : (4+5)')->debug());
+echo_(Xpresion::_('date("Y-m-d H:i:s")')->debug(array()));
+echo_(Xpresion::_('time()')->debug(array()));
+echo_(Xpresion::_('date("Y-m-d H:i:s", time())')->debug());
+echo_(Xpresion::_('pow(1,pow(2,3))')->debug());
+echo_(Xpresion::_('pow(pow(2,3),4)')->debug());
+echo_(Xpresion::_('pow(pow(1,2),pow(2,3))')->debug());
 

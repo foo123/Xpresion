@@ -1,14 +1,14 @@
 Xpr3s10n
 ========
 
-a simple and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/JS, ActionScript
+a simple, fast and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/JS, ActionScript
 
 
 
-**light-weight (~16kB minified, ~6kB zipped)**
+**light-weight (~20kB minified, ~8kB zipped)**
 
 
-**version 0.6** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
+**version 0.6.1** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
 
 
 
@@ -21,6 +21,7 @@ a simple and flexible eXpression parser engine (with custom functions and variab
 * [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for Node/JS, PHP, Python, ActionScript
 * [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for Node/JS, PHP, Python, ActionScript
 * [Dialect](https://github.com/foo123/Dialect) a simple cross-platform SQL construction for PHP, Python, Node/JS, ActionScript (in progress)
+* [Abacus](https://github.com/foo123/Abacus) a fast combinatorics and computation library for Node/JS, PHP, Python, ActionScript
 * [Simulacra](https://github.com/foo123/Simulacra) a simulation, algebraic, probability and combinatorics PHP package for scientific computations
 * [Asynchronous](https://github.com/foo123/asynchronous.js) a simple manager for async, linearised, parallelised, interleaved and sequential tasks for JavaScript
 
@@ -111,6 +112,7 @@ echo(Xpresion('["a","rra","y"]').debug());
 echo(Xpresion('`^regex?`i').debug());
 echo(Xpresion('0 == 1').debug());
 echo(Xpresion('TRUE == False').debug());
+echo(Xpresion('TRUE is False').debug());
 echo(Xpresion('1+2').debug());
 echo(Xpresion('1+2+3').debug());
 echo(Xpresion('1+2*3').debug());
@@ -130,11 +132,17 @@ echo(Xpresion('1 ? : (1+2) (3+4)').debug());
 echo(Xpresion('1 ? sum(1,2) : (3+4)').debug());
 echo(Xpresion('1 ? 1+2 : (3+4)').debug());
 echo(Xpresion('1 ? (2+3) : 2 ? (3+4) : (4+5)').debug());
+echo(Xpresion('date("Y-m-d H:i:s")').debug({}));
+echo(Xpresion('time()').debug({}));
+echo(Xpresion('date("Y-m-d H:i:s", time())').debug());
+echo(Xpresion('pow(1,pow(2,3))').debug());
+echo(Xpresion('pow(pow(2,3),4)').debug());
+echo(Xpresion('pow(pow(1,2),pow(2,3))').debug());
 ```
 
 **output**
 ```text
-Xpresion.VERSION 0.6
+Xpresion.VERSION 0.6.1
 
 Expression: 13
 Variables : []
@@ -230,6 +238,9 @@ Evaluator : (0==1)
 Expression: TRUE == False
 Variables : []
 Evaluator : (true==false)
+Expression: TRUE is False
+Variables : []
+Evaluator : (true===false)
 Expression: 1+2
 Variables : []
 Evaluator : (1+2)
@@ -287,6 +298,28 @@ Evaluator : (1?(1+2):(3+4))
 Expression: 1 ? (2+3) : 2 ? (3+4) : (4+5)
 Variables : []
 Evaluator : (1?(2+3):(2?(3+4):(4+5)))
+Expression: date("Y-m-d H:i:s")
+Variables : []
+Evaluator : Fn.date("Y-m-d H:i:s")
+Data      : {}
+Result    : "2015-04-13 23:15:09"
+Expression: time()
+Variables : []
+Evaluator : Fn.time()
+Data      : {}
+Result    : 1428956109
+Expression: date("Y-m-d H:i:s", time())
+Variables : []
+Evaluator : Fn.date("Y-m-d H:i:s",Fn.time())
+Expression: pow(1,pow(2,3))
+Variables : []
+Evaluator : Math.pow(1,Math.pow(2,3))
+Expression: pow(pow(2,3),4)
+Variables : []
+Evaluator : Math.pow(Math.pow(2,3),4)
+Expression: pow(pow(1,2),pow(2,3))
+Variables : []
+Evaluator : Math.pow(Math.pow(1,2),Math.pow(2,3))
 ```
 
 ####API
@@ -298,18 +331,18 @@ Xpresion.defOp({
     /*----------------------------------------------------------------------------------------
      symbol           input,    fixity,  associativity, priority, output,     output_type
     ------------------------------------------------------------------------------------------*/
-    '==' :Xpresion.Op([1,'==',1],Xpresion.INFIX, Xpresion.LEFT, 40, '($0==$1)', Xpresion.T_BOL )
+    '===' :Xpresion.Op([1,'===',1],Xpresion.INFIX, Xpresion.LEFT, 40, '($0===$1)', Xpresion.T_BOL )
 });
 
 // define an alias
 Xpresion.defOp({
-    'is': Xpresion.Alias('==')
+    'is': Xpresion.Alias('===')
 });
 
 // define a function (functional operator)
 Xpresion.defFunc({
     /*-----------------------------------------------------------------------------------
-    symbol              input,    output,          output_type,        priority(default 5)
+    symbol              input,    output,          output_type,        priority(default 1)
     -------------------------------------------------------------------------------------*/
     'len': Xpresion.Func('len',  'Fn.len($0)',     Xpresion.T_NUM  )
 });
@@ -338,9 +371,7 @@ console.log(expr.debug({'v': 3}));
 expr.debug([Object data]);
 
 // evaluates the expresion based on given data (as variables) and returns the result
-// custom runtime function implementations can be passed also
-// else the default .Fn of the instance will be used (usualy Xpresion.Fn)
-expr.evaluate(Object data [, Object Fn=instance.Fn] );
+expr.evaluate(Object data );
 
 // get or set the evaluator for current Xpresion instance
 expr.evaluator([Function evaluator]);
@@ -378,14 +409,15 @@ Xpresion.defOp({
  symbol     input           ,fixity     ,associativity  ,priority   ,output     ,output_type
 --------------------------------------------------------------------------------------------------*/
             // bra-kets as n-ary operators
+            // negative number of arguments, indicate optional arguments (experimental)
  '('    :   Op(
-            ['(',1,')']     ,POSTFIX    ,RIGHT          ,1          ,'$0'       ,T_DUM 
+            ['(',-1,')']    ,POSTFIX    ,RIGHT          ,0          ,'$0'       ,T_DUM 
             )
-,')'    :   Op([1,')'])
+,')'    :   Op([-1,')'])
 ,'['    :   Op(
             ['[',1,']']     ,POSTFIX    ,RIGHT          ,2          ,'[$0]'     ,T_ARY 
             )
-,']'    :   Op([1,']'])
+,']'    :   Op([-1,']'])
 ,','    :   Op(
             [1,',',1]       ,INFIX      ,LEFT           ,3          ,'$0,$1'    ,T_DFT 
             )
@@ -473,6 +505,9 @@ Xpresion.defOp({
 ,'!='   :   Op(
             [1,'!=',1]      ,INFIX      ,LEFT           ,40         ,'($0!=$1)'     ,T_BOL 
             )
+,'is'   :   Op(
+            [1,'is',1]      ,INFIX      ,LEFT           ,40         ,'($0===$1)'    ,T_BOL 
+            )
 ,'matches': Op(
             [1,'matches',1] ,INFIX      ,NONE           ,40         ,'$0.test($1)'  ,T_BOL 
             )
@@ -500,9 +535,9 @@ Xpresion.defOp({
 });
 
 Xpresion.defFunc({
-/*-----------------------------------------------------------------------------------
-symbol              input   ,output             ,output_type    ,priority(default 5)
-------------------------------------------------------------------------------------*/
+/*-------------------------------------------------------------------------------------------------------
+symbol              input   ,output             ,output_type    ,priority(default 1)    ,arity(default 1)
+---------------------------------------------------------------------------------------------------------*/
  'min'      : Func('min'    ,'Math.min($0)'     ,T_NUM  )
 ,'max'      : Func('max'    ,'Math.max($0)'     ,T_NUM  )
 ,'pow'      : Func('pow'    ,'Math.pow($0)'     ,T_NUM  )
@@ -513,6 +548,8 @@ symbol              input   ,output             ,output_type    ,priority(defaul
 ,'clamp'    : Func('clamp'  ,'Fn.clamp($0)'     ,T_NUM  )
 ,'sum'      : Func('sum'    ,'Fn.sum($0)'       ,T_NUM  )
 ,'avg'      : Func('avg'    ,'Fn.avg($0)'       ,T_NUM  )
+,'time'     : Func('time'   ,'Fn.time()'        ,T_NUM          ,1                      ,0  )
+,'date'     : Func('date'   ,'Fn.date($0)'      ,T_STR  )
 /*---------------------------------------
                 aliases
  ----------------------------------------*/
@@ -533,10 +570,14 @@ Xpresion.defReserved({
 
 ####Performance 
 
+expression parsing algorithm can be seen as a variation and generalisation of [Shunting-Yard algorithm](http://en.wikipedia.org/wiki/Shunting-yard_algorithm), 
+running in linear-time ( O(n) ) in the input sequence
 
 
 ####TODO
 
+* add full support for optional arguments in operators/functions (in progress, experimental)
+* add full support for (xml-like) tags in expressions (experimental)
 * implementations for ActionScript, C/C++
 * performance tests
 * documentation, examples, live examples

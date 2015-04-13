@@ -1,4 +1,4 @@
-Xpresion.VERSION 0.6
+Xpresion.VERSION 0.6.1
 
 Expression: 13
 Variables : []
@@ -123,6 +123,9 @@ Evaluator : (0==1)
 Expression: TRUE == False
 Variables : []
 Evaluator : (true==false)
+Expression: TRUE is False
+Variables : []
+Evaluator : (true===false)
 Expression: 1+2
 Variables : []
 Evaluator : (1+2)
@@ -181,3 +184,31 @@ Evaluator : (1?(1+2):(3+4))
 Expression: 1 ? (2+3) : 2 ? (3+4) : (4+5)
 Variables : []
 Evaluator : (1?(2+3):(2?(3+4):(4+5)))
+Expression: date("Y-m-d H:i:s")
+Variables : []
+Evaluator : date("Y-m-d H:i:s")
+Data      : Array
+(
+)
+
+Result    : '2015-04-13 22:17:02'
+Expression: time()
+Variables : []
+Evaluator : time()
+Data      : Array
+(
+)
+
+Result    : 1428956222
+Expression: date("Y-m-d H:i:s", time())
+Variables : []
+Evaluator : date("Y-m-d H:i:s",time())
+Expression: pow(1,pow(2,3))
+Variables : []
+Evaluator : pow(1,pow(2,3))
+Expression: pow(pow(2,3),4)
+Variables : []
+Evaluator : pow(pow(2,3),4)
+Expression: pow(pow(1,2),pow(2,3))
+Variables : []
+Evaluator : pow(pow(1,2),pow(2,3))
