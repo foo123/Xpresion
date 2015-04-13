@@ -1306,7 +1306,10 @@ class Xpresion:
     def defRuntimeFunc(obj, Fn=None):
         if isinstance(obj,dict):
             Fn = Fn if None!=Fn else Xpresion.Fn
-            for k in obj: Fn[ k ] = obj[ k ]
+            #fix: TypeError: 'type' object does not support item assignment
+            # use setattr
+            for k in obj: setattr(Fn, k, obj[ k ])
+            #for k in obj: Fn[ k ] = obj[ k ]
         return Fn
 
     def __init__(self, expr=None):
