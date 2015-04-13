@@ -805,12 +805,17 @@ class XpresionFn
     public $INF = INF;
     public $NAN = NAN;
     
+    /*public function __construct()
+    {
+        $this->Fn = array();
+    }*/
+    
     public static function __set_state($an_array) // As of PHP 5.1.0
     {
         $obj = new XpresionFn();
         $obj->INF = INF;
         $obj->NAN = NAN;
-        $obj->Fn = $an_array['Fn'];
+        $obj->Fn = (array)$an_array['Fn'];
         return $obj;
     }
     
@@ -1436,7 +1441,11 @@ class Xpresion
     {
         if (is_array($obj) || is_object($obj))
         {
-            if (!$Fn) $Fn =& Xpresion::$Fn_S->$Fn;
+            if (!$Fn) 
+            {
+                $FnS = Xpresion::$Fn_S;
+                $Fn =& $FnS->Fn;
+            }
             foreach ((array)$obj as $k=>$v) $Fn[ $k ] = $v;
         }
         return $Fn;
