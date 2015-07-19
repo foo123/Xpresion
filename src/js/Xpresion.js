@@ -75,269 +75,106 @@ var __version__ = "0.6.2",
         month: [ 'January','February','March','April','May','June','July','August','September','October','November','December' ],
         month_short: [ 'Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec' ]
     },
-    
-    // (localised) date encoder
-    // adapted and optimised from phpjs project
-    date_encoder = {
-        // Day --
-        // Day of month w/leading 0; 01..31
-        d: function( jsdate, locale ) {
-            return pad(jsdate.getDate( ), 2, '0');
-        }
-        
-        // Shorthand day name; Mon...Sun
-        ,D: function( jsdate, locale ) {
-            return locale.day_short[ jsdate.getDay( ) ];
-        }
-        
-        // Day of month; 1..31
-        ,j: function( jsdate, locale ) {
-            return jsdate.getDate( );
-        }
-        
-        // Full day name; Monday...Sunday
-        ,l: function( jsdate, locale ) {
-            return locale.day[ jsdate.getDay( ) ];
-        }
-        
-        // ISO-8601 day of week; 1[Mon]..7[Sun]
-        ,N: function( jsdate, locale ) {
-            return jsdate.getDay( ) || 7;
-        }
-        
-        // Ordinal suffix for day of month; st, nd, rd, th
-        ,S: function( jsdate, locale ) {
-            var j = jsdate.getDate( ), jmod10 = j%10;
-            //j = j < 4 || j > 20 ? j % 10 - 1 : j;
-            if ( locale.ordinal.ord[ j ] ) return locale.ordinal.ord[ j ];
-            else if ( locale.ordinal.ord[ jmod10 ] ) return locale.ordinal.ord[ jmod10 ];
-            return locale.ordinal.nth;
-        }
-        
-        // Day of week; 0[Sun]..6[Sat]
-        ,w: function( jsdate, locale ) {
-            return jsdate.getDay( );
-        }
-        
-        // Day of year; 0..365
-        ,z: function( jsdate, locale ) {
-            var Y = jsdate.getFullYear( ),
-                a = new Date(Y, jsdate.getMonth( ), jsdate.getDate( )),
-                b = new Date(Y, 0, 1);
-            return round((a - b) / 864e5);
-        }
-
-        // Week --
-        // ISO-8601 week number
-        ,W: function( jsdate, locale ) {
-            var Y = jsdate.getFullYear( ), N = jsdate.getDay( ) || 7,
-                a = new Date(Y, jsdate.getMonth( ), jsdate.getDate( ) - N + 3),
-                b = new Date(a.getFullYear( ), 0, 4);
-            return pad(1 + round((a - b) / 864e5 / 7), 2, '0');
-        }
-
-        // Month --
-        // Full month name; January...December
-        ,F: function( jsdate, locale ) {
-            return locale.month[ jsdate.getMonth( ) ];
-        }
-        
-        // Month w/leading 0; 01...12
-        ,m: function( jsdate, locale ) {
-            return pad(jsdate.getMonth( )+1, 2, '0');
-        }
-        
-        // Shorthand month name; Jan...Dec
-        ,M: function( jsdate, locale ) {
-            return locale.month_short[ jsdate.getMonth( ) ];
-        }
-        
-        // Month; 1...12
-        ,n: function( jsdate, locale ) {
-            return jsdate.getMonth( ) + 1;
-        }
-        
-        // Days in month; 28...31
-        ,t: function( jsdate, locale ) {
-            return (new Date(jsdate.getFullYear( ), jsdate.getMonth( )+1, 0)).getDate( );
-        }
-
-        // Year --
-        // Is leap year?; 0 or 1
-        ,L: function( jsdate, locale ) {
-            var Y = jsdate.getFullYear( );
-            return Y % 4 === 0 & Y % 100 !== 0 | Y % 400 === 0;
-        }
-        
-        // ISO-8601 year
-        ,o: function( jsdate, locale ) {
-            var n = jsdate.getMonth( )+1,
-                W = date_encoder.W(jsdate, locale),
-                Y = jsdate.getFullYear( );
-            return Y + (n === 12 && W < 9 ? 1 : n === 1 && W > 9 ? -1 : 0);
-        }
-        
-        // Full year; e.g. 1980...2010
-        ,Y: function( jsdate, locale ) {
-            return jsdate.getFullYear( );
-        }
-        
-        // Last two digits of year; 00...99
-        ,y: function( jsdate, locale ) {
-            return jsdate.getFullYear( ).toString( ).slice(-2);
-        }
-
-        // Time --
-        // am or pm
-        ,a: function( jsdate, locale ) {
-            return jsdate.getHours( ) > 11 ? locale.meridian.pm : locale.meridian.am;
-        }
-        
-        // AM or PM
-        ,A: function( jsdate, locale ) {
-            return jsdate.getHours( ) > 11 ? locale.meridian.PM : locale.meridian.AM;
-        }
-        
-        // Swatch Internet time; 000..999
-        ,B: function( jsdate, locale ) {
-            var H = jsdate.getUTCHours( ) * 36e2,
-                // Hours
-                i = jsdate.getUTCMinutes( ) * 60,
-                // Minutes
-                s = jsdate.getUTCSeconds( ); // Seconds
-            return pad(floor((H + i + s + 36e2) / 86.4) % 1e3, 3, '0');
-        }
-        
-        // 12-Hours; 1..12
-        ,g: function( jsdate, locale ) {
-            return jsdate.getHours( ) % 12 || 12;
-        }
-        
-        // 24-Hours; 0..23
-        ,G: function( jsdate, locale ) {
-            return jsdate.getHours( );
-        }
-        
-        // 12-Hours w/leading 0; 01..12
-        ,h: function( jsdate, locale ) {
-            return pad(jsdate.getHours( ) % 12 || 12, 2, '0');
-        }
-        
-        // 24-Hours w/leading 0; 00..23
-        ,H: function( jsdate, locale ) {
-            return pad(jsdate.getHours( ), 2, '0');
-        }
-        
-        // Minutes w/leading 0; 00..59
-        ,i: function( jsdate, locale ) {
-            return pad(jsdate.getMinutes( ), 2, '0');
-        }
-        
-        // Seconds w/leading 0; 00..59
-        ,s: function( jsdate, locale ) {
-            return pad(jsdate.getSeconds( ), 2, '0');
-        }
-        
-        // Microseconds; 000000-999000
-        ,u: function( jsdate, locale ) {
-            return pad(jsdate.getMilliseconds( ) * 1000, 6, '0');
-        }
-
-        // Timezone --
-        // Timezone identifier; e.g. Atlantic/Azores, ...
-        ,e: function( jsdate, locale ) {
-            // The following works, but requires inclusion of the very large
-            // timezone_abbreviations_list() function.
-            /*              return that.date_default_timezone_get();
-            */
-            throw 'Not supported (see source code of date() for timezone on how to add support)';
-        }
-        
-        // DST observed?; 0 or 1
-        ,I: function( jsdate, locale ) {
-            // Compares Jan 1 minus Jan 1 UTC to Jul 1 minus Jul 1 UTC.
-            // If they are not equal, then DST is observed.
-            var Y = jsdate.getFullYear( ),
-                a = new Date(Y, 0), // Jan 1
-                c = Date.UTC(Y, 0), // Jan 1 UTC
-                b = new Date(Y, 6), // Jul 1
-                d = Date.UTC(Y, 6); // Jul 1 UTC
-            return ((a - c) !== (b - d)) ? 1 : 0;
-        }
-        
-        // Difference to GMT in hour format; e.g. +0200
-        ,O: function( jsdate, locale ) {
-            var tzo = jsdate.getTimezoneOffset( ), a = abs(tzo);
-            return (tzo > 0 ? "-" : "+") + pad(floor(a / 60) * 100 + a % 60, 4, '0');
-        }
-        
-        // Difference to GMT w/colon; e.g. +02:00
-        ,P: function( jsdate, locale ) {
-            var O = date_encoder.O(jsdate, locale);
-            return (O.substr(0, 3) + ":" + O.substr(3, 2));
-        }
-        
-        // Timezone abbreviation; e.g. EST, MDT, ...
-        ,T: function( jsdate, locale ) {
-            return 'UTC';
-        }
-        
-        // Timezone offset in seconds (-43200...50400)
-        ,Z: function( jsdate, locale ) {
-            return -jsdate.getTimezoneOffset( ) * 60;
-        }
-
-        // Full Date/Time --
-        // ISO-8601 date. 'Y-m-d\\TH:i:sP'
-        ,c: function( jsdate, locale ) {
-            var D = date_encoder;
-            return [
-                D.Y(jsdate, locale),'-',D.m(jsdate, locale),'-',D.d(jsdate, locale),
-                '\\',D.T(jsdate, locale),
-                D.H(jsdate, locale),':',D.i(jsdate, locale),':',D.s(jsdate, locale),
-                D.P(jsdate, locale)
-            ].join('');
-        }
-        
-        // RFC 2822 'D, d M Y H:i:s O'
-        ,r: function( jsdate, locale, formatChrCb ) {
-            var D = date_encoder;
-            return [
-                D.D(jsdate, locale),', ',
-                D.d(jsdate, locale),' ',D.M(jsdate, locale),' ',D.Y(jsdate, locale),
-                ' ',
-                D.H(jsdate, locale),':',D.i(jsdate, locale),':',D.s(jsdate, locale),
-                ' ',
-                D.O(jsdate, locale)
-            ].join('');
-        }
-        
-        // Seconds since UNIX epoch
-        ,U: function( jsdate, locale ) {
-            return jsdate / 1000 | 0;
-        }
-    },
-    
     time = function( ) { return floor(new Date().getTime() / 1000); },
-    
-    date = function( format, d ) {
-        var D = date_encoder, date = '',
-            f, i, l = format.length, 
-            locale = default_date_locale, jsdate;
+    date = function( format, timestamp ) {
+        var formatted_datetime, f, i, l, jsdate,
+            locale = default_date_locale
+        ;
         
-        // undefined
-        if ( null === d  || undef === d ) jsdate = new Date( );
         // JS Date
-        else if ( d instanceof Date ) jsdate = new Date( d );
+        if ( timestamp instanceof Date ) jsdate = new Date( timestamp );
         // UNIX timestamp (auto-convert to int)
-        else if ( "number" === typeof d ) jsdate =  new Date(d * 1000);
+        else if ( "number" === typeof timestamp ) jsdate =  new Date(timestamp * 1000);
+        // undefined
+        else/*if ( null === timestamp  || undef === timestamp )*/ jsdate = new Date( );
         
-        for (i=0; i<l; i++)
+        var D = { }, tzo = jsdate.getTimezoneOffset( ), atzo = abs(tzo), m = jsdate.getMonth( ), jmod10;
+        // 24-Hours; 0..23
+        D.G = jsdate.getHours( );
+        // Day of month; 1..31
+        D.j = jsdate.getDate( ); jmod10 = D.j%10;
+        // Month; 1...12
+        D.n = m + 1;
+        // Full year; e.g. 1980...2010
+        D.Y = jsdate.getFullYear( );
+        // Day of week; 0[Sun]..6[Sat]
+        D.w = jsdate.getDay( );
+        // ISO-8601 day of week; 1[Mon]..7[Sun]
+        D.N = D.w || 7;
+        // Day of month w/leading 0; 01..31
+        D.d = pad(D.j, 2, '0');
+        // Shorthand day name; Mon...Sun
+        D.D = locale.day_short[ D.w ];
+        // Full day name; Monday...Sunday
+        D.l = locale.day[ D.w ];
+        // Ordinal suffix for day of month; st, nd, rd, th
+        D.S = locale.ordinal.ord[ D.j ] ? locale.ordinal.ord[ D.j ] : (locale.ordinal.ord[ jmod10 ] ? locale.ordinal.ord[ jmod10 ] : locale.ordinal.nth);
+        // Day of year; 0..365
+        D.z = round((new Date(D.Y, m, D.j) - new Date(D.Y, 0, 1)) / 864e5);
+        // ISO-8601 week number
+        D.W = pad(1 + round((new Date(D.Y, m, D.j - D.N + 3) - new Date(D.Y, 0, 4)) / 864e5 / 7), 2, '0');
+        // Full month name; January...December
+        D.F = locale.month[ m ];
+        // Month w/leading 0; 01...12
+        D.m = pad(D.n, 2, '0');
+        // Shorthand month name; Jan...Dec
+        D.M = locale.month_short[ m ];
+        // Days in month; 28...31
+        D.t = (new Date(D.Y, m+1, 0)).getDate( );
+        // Is leap year?; 0 or 1
+        D.L = D.Y % 4 === 0 & D.Y % 100 !== 0 | D.Y % 400 === 0;
+        // ISO-8601 year
+        D.o = D.Y + (11 === m && D.W < 9 ? 1 : (0 === m && D.W > 9 ? -1 : 0));
+        // Last two digits of year; 00...99
+        D.y = D.Y.toString( ).slice(-2);
+        // am or pm
+        D.a = D.G > 11 ? locale.meridian.pm : locale.meridian.am;
+        // AM or PM
+        D.A = D.G > 11 ? locale.meridian.PM : locale.meridian.AM;
+        // Swatch Internet time; 000..999
+        D.B = pad(floor((jsdate.getUTCHours( ) * 36e2 + jsdate.getUTCMinutes( ) * 60 + jsdate.getUTCSeconds( ) + 36e2) / 86.4) % 1e3, 3, '0');
+        // 12-Hours; 1..12
+        D.g = (D.G % 12) || 12;
+        // 12-Hours w/leading 0; 01..12
+        D.h = pad(D.g, 2, '0');
+        // 24-Hours w/leading 0; 00..23
+        D.H = pad(D.G, 2, '0');
+        // Minutes w/leading 0; 00..59
+        D.i = pad(jsdate.getMinutes( ), 2, '0');
+        // Seconds w/leading 0; 00..59
+        D.s = pad(jsdate.getSeconds( ), 2, '0');
+        // Microseconds; 000000-999000
+        D.u = pad(jsdate.getMilliseconds( ) * 1000, 6, '0');
+        // Timezone identifier; e.g. Atlantic/Azores, ...
+        // The following works, but requires inclusion of the very large
+        // timezone_abbreviations_list() function.
+        /*              return that.date_default_timezone_get();
+        */
+        D.e = '';
+        // DST observed?; 0 or 1
+        D.I = ((new Date(D.Y, 0) - Date.UTC(D.Y, 0)) !== (new Date(D.Y, 6) - Date.UTC(D.Y, 6))) ? 1 : 0;
+        // Difference to GMT in hour format; e.g. +0200
+        D.O = (tzo > 0 ? "-" : "+") + pad(floor(atzo / 60) * 100 + atzo % 60, 4, '0');
+        // Difference to GMT w/colon; e.g. +02:00
+        D.P = (D.O.substr(0, 3) + ":" + D.O.substr(3, 2));
+        // Timezone abbreviation; e.g. EST, MDT, ...
+        D.T = 'UTC';
+        // Timezone offset in seconds (-43200...50400)
+        D.Z = -tzo * 60;
+        // Seconds since UNIX epoch
+        D.U = jsdate / 1000 | 0;
+        // ISO-8601 date. 'Y-m-d\\TH:i:sP'
+        D.c = [ D.Y,'-',D.m,'-',D.d,'\\',D.T,D.H,':',D.i,':',D.s,D.P ].join('');
+        // RFC 2822 'D, d M Y H:i:s O'
+        D.r = [ D.D,', ',D.d,' ',D.M,' ',D.Y,' ',D.H,':',D.i,':',D.s,' ',D.O ].join('');
+            
+        formatted_datetime = '';
+        for (i=0,l=format.length; i<l; i++)
         {
             f = format.charAt( i );
-            date += D[HAS](f) ? D[ f ]( jsdate, locale ) : f;
+            formatted_datetime += D[HAS](f) ? D[ f ] : f;
         }
-        return date;
+        return formatted_datetime;
     },
     
     Tpl, Node, Alias, Tok, Op, Func, Xpresion, EMPTY_TOKEN,

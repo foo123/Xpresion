@@ -161,12 +161,12 @@ Expression: date("Y-m-d H:i:s")
 Variables : []
 Evaluator : Fn.date("Y-m-d H:i:s")
 Data      : {}
-Result    : '2015-07-19 17:59:50'
+Result    : '2015-07-19 21:15:50'
 Expression: time()
 Variables : []
 Evaluator : Fn.time()
 Data      : {}
-Result    : 1437317990
+Result    : 1437329750
 Expression: date("Y-m-d H:i:s", time())
 Variables : []
 Evaluator : Fn.date("Y-m-d H:i:s",Fn.time())

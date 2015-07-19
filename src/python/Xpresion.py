@@ -157,7 +157,6 @@ default_date_locale = {
 def php_time( ):
     return int(time.time())
 
-
 def php_date( format, timestamp=None ):
     global default_date_locale
     locale = default_date_locale
@@ -165,11 +164,11 @@ def php_date( format, timestamp=None ):
     # http://strftime.org/
     # https://docs.python.org/2/library/time.html
     # adapted from http://brandonwamboldt.ca/python-php-date-class-335/
-    if timestamp is None: timestamp = php_time()
+    if timestamp is None: timestamp = php_time( )
     utime = timestamp
     dtime  = datetime.datetime.fromtimestamp(timestamp)
 
-    DATE = { }
+    D = { }
     w = dtime.weekday()
     W = dtime.isocalendar()[1]
     d = dtime.day
@@ -190,58 +189,58 @@ def php_date( format, timestamp=None ):
     elif beats < 0: beats += 1000
         
     # Day --
-    DATE['d'] = str( d ).zfill(2)
-    DATE['D'] = locale['day_short'][ w ]
-    DATE['j'] = str( d )
-    DATE['l'] = locale['day'][ w ]
-    DATE['N'] = str( w if 0 < w else 7 )
-    DATE['S'] = locale['ordinal']['ord'][ d ] if d in locale['ordinal']['ord'] else (locale['ordinal']['ord'][ dmod10 ] if dmod10 in locale['ordinal']['ord'] else locale['ordinal']['nth'])
-    DATE['w'] = str( w )
-    DATE['z'] = str( dtime.timetuple().tm_yday )
+    D['d'] = str( d ).zfill(2)
+    D['D'] = locale['day_short'][ w ]
+    D['j'] = str( d )
+    D['l'] = locale['day'][ w ]
+    D['N'] = str( w if 0 < w else 7 )
+    D['S'] = locale['ordinal']['ord'][ d ] if d in locale['ordinal']['ord'] else (locale['ordinal']['ord'][ dmod10 ] if dmod10 in locale['ordinal']['ord'] else locale['ordinal']['nth'])
+    D['w'] = str( w )
+    D['z'] = str( dtime.timetuple().tm_yday )
     
     # Week --
-    DATE['W'] = str( W )
+    D['W'] = str( W )
     
     # Month --
-    DATE['F'] = locale['month'][ n ]
-    DATE['m'] = str( n ).zfill(2)
-    DATE['M'] = locale['month_short'][ n ]
-    DATE['n'] = str( n )
-    DATE['t'] = str( calendar.monthrange(Y, n)[1] )
+    D['F'] = locale['month'][ n ]
+    D['m'] = str( n ).zfill(2)
+    D['M'] = locale['month_short'][ n ]
+    D['n'] = str( n )
+    D['t'] = str( calendar.monthrange(Y, n)[1] )
     
     # Year --
-    DATE['L'] = str( int(calendar.isleap(Y)) )
-    DATE['o'] = str(Y + (1 if n == 12 and W < 9 else (-1 if n == 1 and W > 9 else 0)))
-    DATE['Y'] = str( Y )
-    DATE['y'] = str( Y )[2:]
+    D['L'] = str( int(calendar.isleap(Y)) )
+    D['o'] = str(Y + (1 if n == 12 and W < 9 else (-1 if n == 1 and W > 9 else 0)))
+    D['Y'] = str( Y )
+    D['y'] = str( Y )[2:]
     
     # Time --
-    DATE['a'] = locale['meridian'][meridian.lower()] if meridian.lower() in locale['meridian'] else meridian.lower()
-    DATE['A'] = locale['meridian'][meridian] if meridian in locale['meridian'] else meridian
-    DATE['B'] = str( int(beats) ).zfill(3)
-    DATE['g'] = str( g )
-    DATE['G'] = str( G )
-    DATE['h'] = str( g ).zfill(2)
-    DATE['H'] = str( G ).zfill(2)
-    DATE['i'] = str( dtime.minute ).zfill(2)
-    DATE['s'] = str( dtime.second ).zfill(2)
-    DATE['u'] = str( dtime.microsecond ).zfill(6)
+    D['a'] = locale['meridian'][meridian.lower()] if meridian.lower() in locale['meridian'] else meridian.lower()
+    D['A'] = locale['meridian'][meridian] if meridian in locale['meridian'] else meridian
+    D['B'] = str( int(beats) ).zfill(3)
+    D['g'] = str( g )
+    D['G'] = str( G )
+    D['h'] = str( g ).zfill(2)
+    D['H'] = str( G ).zfill(2)
+    D['i'] = str( dtime.minute ).zfill(2)
+    D['s'] = str( dtime.second ).zfill(2)
+    D['u'] = str( dtime.microsecond ).zfill(6)
     
     # Timezone --
-    DATE['e'] = '' # TODO, missing
-    DATE['I'] = str( dtime.dst() )
-    DATE['O'] = ('-' if tzo > 0 else '+')+str(int(atzo / 60) * 100 + atzo % 60).zfill(4)
-    DATE['P'] = DATE['O'][:3]+':'+DATE['O'][3:]
-    DATE['T'] = 'UTC'
-    DATE['Z'] = str(-tzo*60)
+    D['e'] = '' # TODO, missing
+    D['I'] = str( dtime.dst() )
+    D['O'] = ('-' if tzo > 0 else '+')+str(int(atzo / 60) * 100 + atzo % 60).zfill(4)
+    D['P'] = D['O'][:3]+':'+D['O'][3:]
+    D['T'] = 'UTC'
+    D['Z'] = str(-tzo*60)
     
     # Full Date/Time --
-    DATE['c'] = ''.join([ DATE['Y'],'-',DATE['m'],'-',DATE['d'],'\\',DATE['T'],DATE['H'],':',DATE['i'],':',DATE['s'],DATE['P'] ])
-    DATE['r'] = ''.join([ DATE['D'],', ',DATE['d'],' ',DATE['M'],' ',DATE['Y'],' ',DATE['H'],':',DATE['i'],':',DATE['s'],' ',DATE['O'] ])
-    DATE['U'] = str( utime )
+    D['c'] = ''.join([ D['Y'],'-',D['m'],'-',D['d'],'\\',D['T'],D['H'],':',D['i'],':',D['s'],D['P'] ])
+    D['r'] = ''.join([ D['D'],', ',D['d'],' ',D['M'],' ',D['Y'],' ',D['H'],':',D['i'],':',D['s'],' ',D['O'] ])
+    D['U'] = str( utime )
     
     formatted_datetime = ''
-    for ch in format: formatted_datetime += DATE[ch] if ch in DATE else ch
+    for f in format: formatted_datetime += D[f] if f in D else f
     return formatted_datetime
 
 

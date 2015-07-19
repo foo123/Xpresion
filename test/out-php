@@ -191,7 +191,7 @@ Data      : Array
 (
 )
 
-Result    : '2015-07-19 17:01:34'
+Result    : '2015-07-19 20:16:27'
 Expression: time()
 Variables : []
 Evaluator : time()
@@ -199,7 +199,7 @@ Data      : Array
 (
 )
 
-Result    : 1437318094
+Result    : 1437329787
 Expression: date("Y-m-d H:i:s", time())
 Variables : []
 Evaluator : date("Y-m-d H:i:s",time())
