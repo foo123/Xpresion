@@ -8,13 +8,14 @@ a simple, fast and flexible eXpression parser engine (with custom functions and 
 **light-weight (~20kB minified, ~8kB zipped)**
 
 
-**version 0.6.1** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
+**version 0.6.2** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
 
 
 
 **see also:**  
 
 * [Contemplate](https://github.com/foo123/Contemplate) a light-weight template engine for Node/JS, PHP, Python, ActionScript
+* [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets used as (template) plugins and/or standalone for PHP, Node/JS, Python (can be used as plugins for Contemplate engine as well)
 * [Tao](https://github.com/foo123/Tao.js) A simple, tiny, isomorphic, precise and fast template engine for handling both string and live dom based templates
 * [ModelView](https://github.com/foo123/modelview.js) a light-weight and flexible MVVM framework for JavaScript/HTML5
 * [ModelView MVC jQueryUI Widgets](https://github.com/foo123/modelview-widgets) plug-n-play, state-full, full-MVC widgets for jQueryUI using modelview.js (e.g calendars, datepickers, colorpickers, tables/grids, etc..) (in progress)
@@ -143,7 +144,7 @@ echo(Xpresion('pow(pow(1,2),pow(2,3))').debug());
 
 **output**
 ```text
-Xpresion.VERSION 0.6.1
+Xpresion.VERSION 0.6.2
 
 Expression: 13
 Variables : []
@@ -572,14 +573,14 @@ Xpresion.defReserved({
 ####Performance 
 
 expression parsing algorithm can be seen as a variation and generalisation of [Shunting-Yard algorithm](http://en.wikipedia.org/wiki/Shunting-yard_algorithm), 
-running in linear-time ( O(n) ) in the input sequence
+running in linear-time ( `O(n)` ) in the input sequence
 
 
 ####TODO
 
-* add full support for optional arguments in operators/functions (in progress, experimental)
-* add full support for (xml-like) tags in expressions (experimental)
-* implementations for ActionScript, C/C++
+* add full support for optional arguments in `operators`/`functions` (in progress, experimental)
+* add full support for (`xml`-like) `tags` in `expressions` (experimental)
+* implementations for `ActionScript`, `C/C++`
 * performance tests
 * documentation, examples, live examples
 

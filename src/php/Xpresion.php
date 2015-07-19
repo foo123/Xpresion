@@ -3,7 +3,7 @@
 *
 *   Xpresion
 *   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-*   @version: 0.6.1
+*   @version: 0.6.2
 *
 *   https://github.com/foo123/Xpresion
 *
@@ -200,7 +200,7 @@ class XpresionTpl
     }
 
     
-    public static $defaultArgs = array('$-5'=>-5,'$-4'=>-4,'$-3'=>-3,'$-2'=>-2,'$-1'=>-1,'$0'=>0,'$1'=>1,'$2'=>2,'$3'=>3,'$4'=>4,'$5'=>5);
+    public static $defaultArgs = '/\\$(-?[0-9]+)/';
     
     public $id = null;
     public $tpl = null;
@@ -211,10 +211,10 @@ class XpresionTpl
         $this->id = null;
         $this->_renderer = null;
         
-        if ( !$replacements ) $replacements = self::$defaultArgs;
-        $this->tpl = is_string($replacements) 
+        if ( !$replacements || empty($replacements) ) $replacements = self::$defaultArgs;
+        $this->tpl = is_string($replacements)
                 ? self::multisplit_re( $tpl, $replacements)
-                : self::multisplit( $tpl, !$replacements ?self::$defaultArgs:$replacements);
+                : self::multisplit( $tpl, (array)$replacements);
         if (true === $compiled) $this->_renderer = self::compile( $this->tpl );
     }
 
@@ -893,7 +893,7 @@ class XpresionFn
 
 class Xpresion
 {
-    const VERSION = "0.6.1";
+    const VERSION = "0.6.2";
     
     const COMMA       =   ',';
     const LPAREN      =   '(';

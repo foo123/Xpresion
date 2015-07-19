@@ -3,7 +3,7 @@
 #
 #   Xpresion
 #   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-#   @version: 0.6.1
+#   @version: 0.6.2
 #
 #   https://github.com/foo123/Xpresion
 #
@@ -143,72 +143,107 @@ def evaluator_factory(evaluator_str,Fn,Cache):
     return evaluator_factory(Fn,Cache)
 
 
-def _get_ordinal_suffix( n ):
-    # adapted from http://brandonwamboldt.ca/python-php-date-class-335/
-    return {1: 'st', 2: 'nd', 3: 'rd'}.get(4 if 10 <= n % 100 < 20 else n % 10, "th")
+default_date_locale = {
+'meridian': { 'am':'am', 'pm':'pm', 'AM':'AM', 'PM':'PM' },
+'ordinal': { 'ord':{1:'st',2:'nd',3:'rd'}, 'nth':'th' },
+'timezone': [ 'UTC','EST','MDT' ],
+'timezone_short': [ 'UTC','EST','MDT' ],
+'day': [ 'Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday' ],
+'day_short': [ 'Sun','Mon','Tue','Wed','Thu','Fri','Sat' ],
+'month': [ 'January','February','March','April','May','June','July','August','September','October','November','December' ],
+'month_short': [ 'Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec' ]
+}
 
 def php_time( ):
     return int(time.time())
 
-def php_date( format, time=None ):
+
+def php_date( format, timestamp=None ):
+    global default_date_locale
+    locale = default_date_locale
     # http://php.net/manual/en/datetime.formats.date.php
     # http://strftime.org/
+    # https://docs.python.org/2/library/time.html
     # adapted from http://brandonwamboldt.ca/python-php-date-class-335/
-    if time is None: time = php_time()
-    time  = datetime.datetime.fromtimestamp(time)
-    timeStr = ''
+    if timestamp is None: timestamp = php_time()
+    utime = timestamp
+    dtime  = datetime.datetime.fromtimestamp(timestamp)
 
-    replacements = {}
+    DATE = { }
+    w = dtime.weekday()
+    W = dtime.isocalendar()[1]
+    d = dtime.day
+    dmod10 = d % 10
+    n = dtime.month
+    Y = dtime.year
+    g = int(dtime.strftime("%I"))
+    G = int(dtime.strftime("%H"))
+    meridian = dtime.strftime("%p")
+    tzo = int(time.timezone / 60)
+    atzo = abs(tzo)
 
-    """ Day """
-    replacements['d'] = str( time.day ).zfill(2)
-    replacements['D'] = calendar.day_abbr[ time.weekday() ]
-    replacements['j'] = str( time.day )
-    replacements['l'] = calendar.day_name[ time.weekday() ]
-    replacements['S'] = _get_ordinal_suffix( time.day )
-    replacements['w'] = str( time.weekday() )
-    replacements['z'] = str( time.timetuple().tm_yday )
+    # Calculate and return Swatch Internet Time
+    # http://code.activestate.com/recipes/578473-calculating-swatch-internet-time-or-beats/
+    lh, lm, ls = time.localtime()[3:6]
+    beats = ((lh * 3600) + (lm * 60) + ls + time.timezone) / 86.4
+    if beats > 1000: beats -= 1000
+    elif beats < 0: beats += 1000
+        
+    # Day --
+    DATE['d'] = str( d ).zfill(2)
+    DATE['D'] = locale['day_short'][ w ]
+    DATE['j'] = str( d )
+    DATE['l'] = locale['day'][ w ]
+    DATE['N'] = str( w if 0 < w else 7 )
+    DATE['S'] = locale['ordinal']['ord'][ d ] if d in locale['ordinal']['ord'] else (locale['ordinal']['ord'][ dmod10 ] if dmod10 in locale['ordinal']['ord'] else locale['ordinal']['nth'])
+    DATE['w'] = str( w )
+    DATE['z'] = str( dtime.timetuple().tm_yday )
     
-    """ Week """
-    replacements['W'] = str( time.isocalendar()[1] )
+    # Week --
+    DATE['W'] = str( W )
     
-    """ Month """
-    replacements['F'] = calendar.month_name[ time.month ]
-    replacements['m'] = str( time.month ).zfill(2)
-    replacements['M'] = calendar.month_abbr[ time.month ]
-    replacements['n'] = str( time.month )
-    replacements['t'] = str( calendar.monthrange(time.year, time.month)[1] )
+    # Month --
+    DATE['F'] = locale['month'][ n ]
+    DATE['m'] = str( n ).zfill(2)
+    DATE['M'] = locale['month_short'][ n ]
+    DATE['n'] = str( n )
+    DATE['t'] = str( calendar.monthrange(Y, n)[1] )
     
-    """ Year """
-    replacements['L'] = str(int( calendar.isleap(time.year) ))
-    replacements['Y'] = str( time.year )
-    replacements['y'] = str( time.year )[2:]
+    # Year --
+    DATE['L'] = str( int(calendar.isleap(Y)) )
+    DATE['o'] = str(Y + (1 if n == 12 and W < 9 else (-1 if n == 1 and W > 9 else 0)))
+    DATE['Y'] = str( Y )
+    DATE['y'] = str( Y )[2:]
     
-    """ Time """
-    replacements['a'] = time.strftime("%p").lower()
-    replacements['A'] = time.strftime("%p")
-    replacements['g'] = str( int(time.strftime("%I")) )
-    replacements['G'] = str( int(time.strftime("%H")) )
-    replacements['h'] = time.strftime("%I")
-    replacements['H'] = time.strftime("%H")
-    replacements['i'] = str( time.minute ).zfill(2)
-    replacements['s'] = str( time.second ).zfill(2)
-    replacements['u'] = str( time.microsecond )
+    # Time --
+    DATE['a'] = locale['meridian'][meridian.lower()] if meridian.lower() in locale['meridian'] else meridian.lower()
+    DATE['A'] = locale['meridian'][meridian] if meridian in locale['meridian'] else meridian
+    DATE['B'] = str( int(beats) ).zfill(3)
+    DATE['g'] = str( g )
+    DATE['G'] = str( G )
+    DATE['h'] = str( g ).zfill(2)
+    DATE['H'] = str( G ).zfill(2)
+    DATE['i'] = str( dtime.minute ).zfill(2)
+    DATE['s'] = str( dtime.second ).zfill(2)
+    DATE['u'] = str( dtime.microsecond ).zfill(6)
     
-    """ Timezone """
-    replacements['e'] = "" #_self.get_timezone()
-    replacements['I'] = str( time.dst() )
+    # Timezone --
+    DATE['e'] = '' # TODO, missing
+    DATE['I'] = str( dtime.dst() )
+    DATE['O'] = ('-' if tzo > 0 else '+')+str(int(atzo / 60) * 100 + atzo % 60).zfill(4)
+    DATE['P'] = DATE['O'][:3]+':'+DATE['O'][3:]
+    DATE['T'] = 'UTC'
+    DATE['Z'] = str(-tzo*60)
     
-    #for regex, replace in replacements.items():
-    #    format = format.replace(regex, replace)
-    newformat = ''
-    for c in format:
-        if c in replacements:
-            newformat += replacements[c]
-        else:
-            newformat += c
+    # Full Date/Time --
+    DATE['c'] = ''.join([ DATE['Y'],'-',DATE['m'],'-',DATE['d'],'\\',DATE['T'],DATE['H'],':',DATE['i'],':',DATE['s'],DATE['P'] ])
+    DATE['r'] = ''.join([ DATE['D'],', ',DATE['d'],' ',DATE['M'],' ',DATE['Y'],' ',DATE['H'],':',DATE['i'],':',DATE['s'],' ',DATE['O'] ])
+    DATE['U'] = str( utime )
+    
+    formatted_datetime = ''
+    for ch in format: formatted_datetime += DATE[ch] if ch in DATE else ch
+    return formatted_datetime
 
-    return newformat
 
 def parse_re_flags(s,i,l):
     flags = ''
@@ -309,7 +344,8 @@ class Tpl:
                 mg = m.group(1)
             except:
                 mg = m.group(0)
-            a.append([0, mg])
+            mn = int(mg,10)
+            a.append([0, mg if math.isnan(mn) else mn])
             i = m.end()
             m = rex.search(tpl, i)
         a.append([1, tpl[i:]])
@@ -328,13 +364,10 @@ class Tpl:
             
             for k in key:
                 kn = int(k,10) if isinstance(k,str) else k
-                if not math.isnan(kn):
-                    if kn < 0: k = '-'+str(-kn)
-                    else: k = str(k)
-                    out += '[' + k + ']';
-                
-                else:
+                if math.isnan(kn):
                     out += '["' + str(k) + '"]';
+                else:
+                    out += '[' + str(kn) + ']';
                 
         return out
 
@@ -368,7 +401,7 @@ class Tpl:
         return createFunction('args', "    " + out)
 
     
-    defaultArgs = {'$-5':-5,'$-4':-4,'$-3':-3,'$-2':-2,'$-1':-1,'$0':0,'$1':1,'$2':2,'$3':3,'$4':4,'$5':5}
+    defaultArgs = re.compile(r'\$(-?[0-9]+)')
     
     def __init__(self, tpl='', replacements=None, compiled=False):
         global T_REGEXP
@@ -377,10 +410,8 @@ class Tpl:
         self.tpl = None
         self._renderer = None
         
-        if replacements and isinstance(replacements, T_REGEXP):
-            self.tpl = Tpl.multisplit_re( tpl, replacements )
-        else:
-            self.tpl = Tpl.multisplit( tpl, Tpl.defaultArgs if not replacements else replacements )
+        if not replacements: replacements = Tpl.defaultArgs
+        self.tpl = Tpl.multisplit_re( tpl, replacements ) if isinstance(replacements, T_REGEXP) else Tpl.multisplit( tpl, replacements )
         if compiled is True: self._renderer = Tpl.compile( self.tpl )
 
     def __del__(self):
@@ -863,7 +894,7 @@ class Xpresion:
     https://github.com/foo123/Xpresion
     """
     
-    VERSION = "0.6.1"
+    VERSION = "0.6.2"
     
     COMMA       = COMMA
     LPAREN      = LPAREN

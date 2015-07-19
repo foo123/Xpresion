@@ -1,4 +1,4 @@
-Xpresion.VERSION 0.6.1
+Xpresion.VERSION 0.6.2
 
 Expression: 13
 Variables : []
@@ -191,7 +191,7 @@ Data      : Array
 (
 )
 
-Result    : '2015-04-13 22:17:02'
+Result    : '2015-07-19 17:01:34'
 Expression: time()
 Variables : []
 Evaluator : time()
@@ -199,7 +199,7 @@ Data      : Array
 (
 )
 
-Result    : 1428956222
+Result    : 1437318094
 Expression: date("Y-m-d H:i:s", time())
 Variables : []
 Evaluator : date("Y-m-d H:i:s",time())

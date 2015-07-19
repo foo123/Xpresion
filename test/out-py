@@ -1,5 +1,5 @@
 Xpresion Module loaded succesfully
-Xpresion.VERSION 0.6.1
+Xpresion.VERSION 0.6.2
 
 Expression: 13
 Variables : []
@@ -161,12 +161,12 @@ Expression: date("Y-m-d H:i:s")
 Variables : []
 Evaluator : Fn.date("Y-m-d H:i:s")
 Data      : {}
-Result    : '2015-04-13 23:21:05'
+Result    : '2015-07-19 17:59:50'
 Expression: time()
 Variables : []
 Evaluator : Fn.time()
 Data      : {}
-Result    : 1428956465
+Result    : 1437317990
 Expression: date("Y-m-d H:i:s", time())
 Variables : []
 Evaluator : Fn.date("Y-m-d H:i:s",Fn.time())

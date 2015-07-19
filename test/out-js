@@ -1,4 +1,4 @@
-Xpresion.VERSION 0.6.1
+Xpresion.VERSION 0.6.2
 
 Expression: 13
 Variables : []
@@ -158,12 +158,12 @@ Expression: date("Y-m-d H:i:s")
 Variables : []
 Evaluator : Fn.date("Y-m-d H:i:s")
 Data      : {}
-Result    : "2015-04-13 23:15:09"
+Result    : "2015-07-19 18:01:22"
 Expression: time()
 Variables : []
 Evaluator : Fn.time()
 Data      : {}
-Result    : 1428956109
+Result    : 1437318082
 Expression: date("Y-m-d H:i:s", time())
 Variables : []
 Evaluator : Fn.date("Y-m-d H:i:s",Fn.time())
