@@ -343,8 +343,13 @@ class Tpl:
                 mg = m.group(1)
             except:
                 mg = m.group(0)
-            mn = int(mg,10)
-            a.append([0, mg if math.isnan(mn) else mn])
+            is_numeric = False
+            try:
+                mn = int(mg,10)
+                is_numeric = False if math.isnan(mn) else True
+            except ValueError:
+                is_numeric = False
+            a.append([0, mn if is_numeric else mg])
             i = m.end()
             m = rex.search(tpl, i)
         a.append([1, tpl[i:]])
