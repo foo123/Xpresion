@@ -1,7 +1,7 @@
 Xpr3s10n
 ========
 
-a simple, fast and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/JS, ActionScript
+a simple, fast and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/XPCOM/JS, ActionScript
 
 
 
@@ -16,16 +16,16 @@ a simple, fast and flexible eXpression parser engine (with custom functions and 
 
 **see also:**  
 
-* [Contemplate](https://github.com/foo123/Contemplate) a light-weight template engine for Node/JS, PHP, Python, ActionScript
-* [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets used as (template) plugins and/or standalone for PHP, Node/JS, Python (can be used as plugins for Contemplate engine as well)
+* [Contemplate](https://github.com/foo123/Contemplate) a light-weight template engine for Node/XPCOM/JS, PHP, Python, ActionScript
+* [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets used as (template) plugins and/or standalone for PHP, Node/XPCOM/JS, Python (can be used as plugins for Contemplate engine as well)
 * [Tao](https://github.com/foo123/Tao.js) A simple, tiny, isomorphic, precise and fast template engine for handling both string and live dom based templates
 * [ModelView](https://github.com/foo123/modelview.js) a light-weight and flexible MVVM framework for JavaScript/HTML5
 * [ModelView MVC jQueryUI Widgets](https://github.com/foo123/modelview-widgets) plug-n-play, state-full, full-MVC widgets for jQueryUI using modelview.js (e.g calendars, datepickers, colorpickers, tables/grids, etc..) (in progress)
-* [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for Node/JS, PHP, Python, ActionScript
-* [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for Node/JS, PHP, Python, ActionScript
+* [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for Node/XPCOM/JS, PHP, Python, ActionScript
+* [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for Node/XPCOM/JS, PHP, Python, ActionScript
 * [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for Node/JS, PHP, Python, ActionScript
-* [Dialect](https://github.com/foo123/Dialect) a simple cross-platform SQL construction for PHP, Python, Node/JS, ActionScript (in progress)
-* [Abacus](https://github.com/foo123/Abacus) a fast combinatorics and computation library for Node/JS, PHP, Python, ActionScript
+* [Dialect](https://github.com/foo123/Dialect) a simple cross-platform SQL construction for PHP, Python, Node/XPCOM/JS, ActionScript
+* [Abacus](https://github.com/foo123/Abacus) a fast combinatorics and computation library for Node/XPCOM/JS, PHP, Python, ActionScript
 * [Simulacra](https://github.com/foo123/Simulacra) a simulation, algebraic, probability and combinatorics PHP package for scientific computations
 * [Asynchronous](https://github.com/foo123/asynchronous.js) a simple manager for async, linearised, parallelised, interleaved and sequential tasks for JavaScript
 
@@ -47,13 +47,13 @@ a simple, fast and flexible eXpression parser engine (with custom functions and 
 
 **(v. 0.5+)**
 
-Xpresion **is not an expression parser**, it does not parse expressions. It is a parser engine. 
+`Xpresion` **is not an expression parser**, it does not parse expressions. It is a **parser engine**. 
 It builds parsers, which parse (custom) expressions. Effectively it is a small [rewrite system](http://en.wikipedia.org/wiki/Abstract_rewriting_system)
 
-This is accomplished by configuring the Xpresion engine to fit the needed expression syntax.
+This is accomplished by configuring the `Xpresion` engine to fit the needed expression syntax.
 Configuration is intutive, easy and flexible (see examples).
 
-However since Xpresion is a parser engine, adding a default configuration, it can itself be a parser as well (out-of-the-box).
+However, since `Xpresion` is a parser engine, adding a default configuration, it can itself be a parser as well (out-of-the-box).
 
 
 1. simple, intuitive, flexible, fast
@@ -65,7 +65,7 @@ However since Xpresion is a parser engine, adding a default configuration, it ca
 7. define n-ary operators seamlessly (e.g **ternary if-then-else**, etc..)
 8. define aliases of operators/functions seamlessly
 9. define new custom expression syntaxes easily (e.g via configuration or via extension/override of methods)
-10. implementations for Node/JS, PHP, Python (only one class per implementation)
+10. implementations for Node/XPCOM/JS, PHP, Python (only one class per implementation)
 
 
 **If you use Xpresion in your application and you want to share it, feel free to submit an example link**
