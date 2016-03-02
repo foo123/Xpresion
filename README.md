@@ -7,6 +7,8 @@ a simple, fast and flexible eXpression parser engine (with custom functions and 
 
 **light-weight (~20kB minified, ~8kB zipped)**
 
+* `Xpresion` is also a `XPCOM JavaScript Component` (Firefox) (e.g to be used in firefox browser addons/plugins)
+
 
 **version 0.6.2** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
 
