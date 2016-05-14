@@ -6,7 +6,6 @@ a simple, fast and flexible eXpression parser engine (with custom functions and 
 
 ![Xpresion](/xpresion.jpg)
 
-
 **light-weight (~20kB minified, ~8kB zipped)**
 
 * `Xpresion` is also a `XPCOM JavaScript Component` (Firefox) (e.g to be used in firefox browser addons/plugins)
@@ -42,6 +41,8 @@ a simple, fast and flexible eXpression parser engine (with custom functions and 
 * [API](#api)
 * [Performance](#performance)
 * [Todo](#todo)
+* [Etymology of *"expression"*](https://en.wiktionary.org/wiki/expression) a latinised form of [*"έκφραση"* (etymology)](https://en.wiktionary.org/wiki/%CE%AD%CE%BA%CF%86%CF%81%CE%B1%CF%83%CE%B7), compare [etymology of *"phrase"*](https://en.wiktionary.org/wiki/phrase) (for an example of phonetic / linguistic equivalent transformations during historic evolution see [Grimm's_law](https://en.wikipedia.org/wiki/Grimm's_law))
+
 
 
 [![Xpresion Live](https://github.com/foo123/Xpresion/raw/master/xpresion.png)](https://foo123.github.io/examples/xpresion)
