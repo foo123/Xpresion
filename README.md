@@ -587,6 +587,7 @@ running in linear-time ( `O(n)` ) in the input sequence
 
 ####TODO
 
+* use [GrammarTemplate](https://github.com/foo123/GrammarTemplate) for more powerful and flexible rewrite output
 * add full support for optional arguments in `operators`/`functions` (in progress, experimental)
 * add full support for (`xml`-like) `tags` in `expressions` (experimental)
 * implementations for `ActionScript`, `C/C++`
