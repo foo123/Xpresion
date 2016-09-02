@@ -11,7 +11,7 @@ a simple, fast and flexible eXpression parser engine (with custom functions and 
 * `Xpresion` is also a `XPCOM JavaScript Component` (Firefox) (e.g to be used in firefox browser addons/plugins)
 
 
-**version 0.6.2** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
+**version 1.0.0 IN PROGRESS** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
 
 
 
@@ -587,10 +587,9 @@ running in linear-time ( `O(n)` ) in the input sequence
 
 ####TODO
 
-* use [GrammarTemplate](https://github.com/foo123/GrammarTemplate) for more powerful and flexible rewrite output
-* add full support for optional arguments in `operators`/`functions` (in progress, experimental)
+* use [GrammarTemplate](https://github.com/foo123/GrammarTemplate) for more powerful and flexible rewrite output [DONE]
+* add full support for optional arguments in `operators`/`functions`  [DONE]
 * add full support for (`xml`-like) `tags` in `expressions` (experimental)
 * implementations for `ActionScript`, `C/C++`
 * performance tests
-* documentation, examples, live examples
 

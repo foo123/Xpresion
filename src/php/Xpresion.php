@@ -3,15 +3,13 @@
 *
 *   Xpresion
 *   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-*   @version: 0.6.2
+*   @version: 1.0.0
 *
 *   https://github.com/foo123/Xpresion
 *
 **/
-
 if (!class_exists('Xpresion'))
 {
-
 class XpresionUtils
 {
     #def trace( stack ):
@@ -87,135 +85,233 @@ class XpresionUtils
     }
 }
 
-            
-class XpresionTpl
+// https://github.com/foo123/GrammarTemplate   
+class XpresionGrammarTemplate
 {    
-    public static function multisplit($tpl, $reps, $as_array=false)
+    const VERSION = '1.1.0';
+    
+    private static function walk( $obj, $keys )
     {
-        $a = array( array(1, $tpl) );
-        foreach ((array)$reps as $r=>$s)
+        $o = $obj; $l = count($keys); $i = 0;
+        while( $i < $l )
         {
-            $c = array( ); 
-            $sr = $as_array ? $s : $r;
-            $s = array(0, $s);
-            foreach ($a as $ai)
+            $k = $keys[$i++];
+            if ( isset($o) )
             {
-                if (1 === $ai[ 0 ])
-                {
-                    $b = explode($sr, $ai[ 1 ]);
-                    $bl = count($b);
-                    $c[] = array(1, $b[0]);
-                    if ($bl > 1)
-                    {
-                        for ($j=0; $j<$bl-1; $j++)
-                        {
-                            $c[] = $s;
-                            $c[] = array(1, $b[$j+1]);
-                        }
-                    }
-                }        
-                else
-                {
-                    $c[] = $ai;
-                }
+                if ( is_array($o) && isset($o[$k]) )
+                    $o = $o[$k];
+                elseif ( is_object($o) && isset($o->{$k}) )
+                    $o = $o->{$k};
+                else return null;
             }
-            $a = $c;
+            else return null;
         }
-        return $a;
-    }
-
-    public static function multisplit_re( $tpl, $re ) 
-    {
-        $a = array(); 
-        $i = 0; 
-        while ( preg_match($re, $tpl, $m, PREG_OFFSET_CAPTURE, $i) ) 
-        {
-            $a[] = array(1, substr($tpl, $i, $m[0][1]-$i));
-            $a[] = array(0, isset($m[1]) ? $m[1][0] : $m[0][0]);
-            $i = $m[0][1] + strlen($m[0][0]);
-        }
-        $a[] = array(1, substr($tpl, $i));
-        return $a;
+        return $o;
     }
     
-    public static function arg($key=null, $argslen=null)
+    public static function multisplit( $tpl, $delims )
     {
-        $out = '$args';
-        
-        if ($key)
+        $IDL = $delims[0]; $IDR = $delims[1]; $OBL = $delims[2]; $OBR = $delims[3];
+        $lenIDL = strlen($IDL); $lenIDR = strlen($IDR); $lenOBL = strlen($OBL); $lenOBR = strlen($OBR);
+        $ESC = '\\'; $OPT = '?'; $OPTR = '*'; $NEG = '!'; $DEF = '|'; $REPL = '{'; $REPR = '}';
+        $default_value = null; $negative = 0; $optional = 0; $start_i = 0; $end_i = 0;
+        $l = strlen($tpl);
+        $i = 0; $a = array(array(), null, null, 0, 0, 0, 0, null); $stack = array(); $s = ''; $escaped = false;
+        while( $i < $l )
         {
-            if (is_string($key))
-                $key = !empty($key) ? explode('.', $key) : array();
-            else 
-                $key = array($key);
-            $givenArgsLen = (bool)(null !=$argslen && is_string($argslen));
+            $ch = $tpl[$i];
+            if ( $ESC === $ch )
+            {
+                $escaped = !$escaped;
+                $i += 1;
+            }
             
-            foreach ($key as $k)
+            if ( $IDL === substr($tpl,$i,$lenIDL) )
             {
-                $kn = is_string($k) ? intval($k,10) : $k;
-                if (!is_nan($kn))
+                if ( $escaped )
                 {
-                    if ($kn < 0) $k = ($givenArgsLen ? $argslen : 'count('.$out.')') . ('-'.(-$kn));
-                    
-                    $out .= '[' . $k . ']';
+                    $s .= $IDL;
+                    $i += $lenIDL;
+                    $escaped = false;
+                    continue;
+                }
+                
+                $i += $lenIDL;
+                if ( strlen($s) ) $a[0][] = array(0, $s);
+                $s = '';
+            }
+            elseif ( $IDR === substr($tpl,$i,$lenIDR) )
+            {
+                if ( $escaped )
+                {
+                    $s .= $IDR;
+                    $i += $lenIDR;
+                    $escaped = false;
+                    continue;
+                }
+                
+                $i += $lenIDR;
+                // argument
+                $argument = $s; $s = '';
+                $p = strpos($argument, $DEF);
+                if ( false !== $p )
+                {
+                    $default_value = substr($argument, $p+1);
+                    $argument = substr($argument, 0, $p);
                 }
                 else
                 {
-                    $out .= '["' . $k . '"]';
+                    $default_value = null;
                 }
+                $c = $argument[0];
+                if ( $OPT === $c || $OPTR === $c )
+                {
+                    $optional = 1;
+                    if ( $OPTR === $c )
+                    {
+                        $start_i = 1;
+                        $end_i = -1;
+                    }
+                    else
+                    {
+                        $start_i = 0;
+                        $end_i = 0;
+                    }
+                    $argument = substr($argument,1);
+                    if ( $NEG === $argument[0] )
+                    {
+                        $negative = 1;
+                        $argument = substr($argument,1);
+                    }
+                    else
+                    {
+                        $negative = 0;
+                    }
+                }
+                elseif ( $REPL === $c )
+                {
+                    $s = ''; $j = 1; $jl = strlen($argument);
+                    while ( $j < $jl && $REPR !== $argument[$j] ) $s .= $argument[$j++];
+                    $argument = substr($argument, $j+1);
+                    $s = explode(',', $s);
+                    if ( count($s) > 1 )
+                    {
+                        $start_i = trim($s[0]);
+                        $start_i = strlen($start_i) ? intval($start_i,10) : 0;
+                        if ( is_nan($start_i) ) $start_i = 0;
+                        $end_i = trim($s[1]);
+                        $end_i = strlen($end_i) ? intval($end_i,10) : -1;
+                        if ( is_nan($end_i) ) $end_i = 0;
+                        $optional = 1;
+                    }
+                    else
+                    {
+                        $start_i = trim($s[0]);
+                        $start_i = strlen($start_i) ? intval($start_i,10) : 0;
+                        if ( is_nan($start_i) ) $start_i = 0;
+                        $end_i = $start_i;
+                        $optional = 0;
+                    }
+                    $s = '';
+                    $negative = 0;
+                }
+                else
+                {
+                    $optional = 0;
+                    $negative = 0;
+                    $start_i = 0;
+                    $end_i = 0;
+                }
+                if ( $negative && (null === $default_value) ) $default_value = '';
+                
+                $nested = false !== strpos($argument, '.') ? explode('.', $argument) : null;
+                
+                if ( $optional && !$a[2] )
+                {
+                    $a[1] = $argument;
+                    $a[2] = $nested;
+                    $a[3] = $optional;
+                    $a[4] = $negative;
+                    $a[5] = $start_i;
+                    $a[6] = $end_i;
+                    // handle multiple optional arguments for same optional block
+                    $a[7] = array(array($argument,$negative,$start_i,$end_i,$nested));
+                }
+                elseif( $optional )
+                {
+                    // handle multiple optional arguments for same optional block
+                    $a[7][] = array($argument,$negative,$start_i,$end_i,$nested);
+                }
+                elseif ( !$optional && (null === $a[1]) )
+                {
+                    $a[1] = $argument;
+                    $a[2] = $nested;
+                    $a[3] = 0;
+                    $a[4] = $negative;
+                    $a[5] = $start_i;
+                    $a[6] = $end_i;
+                    $a[7] = array(array($argument,$negative,$start_i,$end_i,$nested));
+                }
+                $a[0][] = array(1, $argument, $nested, $default_value, $optional, $negative, $start_i, $end_i);
             }
-        }        
-        return $out;
-    }
-
-    public static function compile($tpl, $raw=false)
-    {
-        static $NEWLINE = '/\\n\\r|\\r\\n|\\n|\\r/'; 
-        static $SQUOTE = "/'/";
-        
-        if (true === $raw)
-        {
-            $out = 'return (';
-            foreach ($tpl as $tpli)
+            elseif ( $OBL === substr($tpl,$i,$lenOBL) )
             {
-                $notIsSub = $tpli[ 0 ];
-                $s = $tpli[ 1 ];
-                $out .= $notIsSub ? $s : self::arg($s);
+                if ( $escaped )
+                {
+                    $s .= $OBL;
+                    $i += $lenOBL;
+                    $escaped = false;
+                    continue;
+                }
+                
+                $i += $lenOBL;
+                // optional block
+                if ( strlen($s) ) $a[0][] = array(0, $s);
+                $s = '';
+                $stack[] = $a;
+                $a = array(array(), null, null, 0, 0, 0, 0, null);
             }
-            $out .= ');';
-        }    
-        else
-        {
-            $out = '$argslen=count($args); return (';
-            foreach ($tpl as $tpli)
+            elseif ( $OBR === substr($tpl,$i,$lenOBR) )
             {
-                $notIsSub = $tpli[ 0 ];
-                $s = $tpli[ 1 ];
-                if ($notIsSub) $out .= "'" . preg_replace($NEWLINE, "' + \"\\n\" + '", preg_replace($SQUOTE, "\\'", $s)) . "'";
-                else $out .= " . strval(" . self::arg($s,'$argslen') . ") . ";
+                if ( $escaped )
+                {
+                    $s .= $OBR;
+                    $i += $lenOBR;
+                    $escaped = false;
+                    continue;
+                }
+                
+                $i += $lenOBR;
+                $b = $a; $a = array_pop($stack);
+                if ( strlen($s) ) $b[0][] = array(0, $s);
+                $s = '';
+                $a[0][] = array(-1, $b[1], $b[2], $b[3], $b[4], $b[5], $b[6], $b[7], $b[0]);
             }
-            $out .= ');';
+            else
+            {
+                if ( $ESC === $ch ) $s .= $ch;
+                else $s .= $tpl[$i++];
+            }
         }
-        return create_function('$args', $out);
+        if ( strlen($s) ) $a[0][] = array(0, $s);
+        return $a[0];
     }
-
     
-    public static $defaultArgs = '/\\$(-?[0-9]+)/';
+    public static $defaultDelims = array('<','>','[',']'/*,'?','*','!','|','{','}'*/);
     
     public $id = null;
     public $tpl = null;
-    private $_renderer = null;
+    protected $_args = null;
+    protected $_parsed = false;
     
-    public function __construct($tpl='', $replacements=null, $compiled=false)
+    public function __construct($tpl='', $delims=null)
     {
         $this->id = null;
-        $this->_renderer = null;
-        
-        if ( !$replacements || empty($replacements) ) $replacements = self::$defaultArgs;
-        $this->tpl = is_string($replacements)
-                ? self::multisplit_re( $tpl, $replacements)
-                : self::multisplit( $tpl, (array)$replacements);
-        if (true === $compiled) $this->_renderer = self::compile( $this->tpl );
+        $this->tpl = null;
+        if ( empty($delims) ) $delims = self::$defaultDelims;
+        // lazy init
+        $this->_args = array($tpl, $delims);
+        $this->_parsed = false;
     }
 
     public function __destruct()
@@ -227,27 +323,121 @@ class XpresionTpl
     {
         $this->id = null;
         $this->tpl = null;
-        $this->_renderer = null;
+        $this->_args = null;
+        $this->_parsed = null;
+        return $this;
+    }
+    
+    public function parse( )
+    {
+        if ( false === $this->_parsed )
+        {
+            // lazy init
+            $this->_parsed = true;
+            $this->tpl = self::multisplit( $this->_args[0], $this->_args[1] );
+            $this->_args = null;
+        }
         return $this;
     }
     
     public function render($args=null)
     {
-        if (!$args) $args = array();
-        
-        if ($this->_renderer) 
+        if ( false === $this->_parsed )
         {
-            $f = $this->_renderer;
-            return $f( $args );
+            // lazy init
+            $this->parse( );
         }
         
-        $out = '';
+        if ( null === $args ) $args = array();
         
-        foreach ($this->tpl as $tpli)
+        $tpl = $this->tpl; $l = count($tpl); $stack = array();
+        $rarg = null; $ri = 0; $out = '';
+        $i = 0;
+        while ( $i < $l || !empty($stack) )
         {
-            $notIsSub = $tpli[ 0 ];
-            $s = $tpli[ 1 ];
-            $out .= $notIsSub ? $s : strval($args[ $s ]);
+            if ( $i >= $l )
+            {
+                $p = array_pop($stack);
+                $tpl = $p[0]; $i = $p[1]; $l = $p[2];
+                $rarg = $p[3]; $ri = $p[4];
+                continue;
+            }
+            
+            $t = $tpl[ $i ]; $tt = $t[ 0 ]; $s = $t[ 1 ];
+            if ( -1 === $tt )
+            {
+                // optional block
+                $opts_vars = $t[ 7 ];
+                if ( !empty($opts_vars) )
+                {
+                    $render = true;
+                    foreach($opts_vars as $opt_v)
+                    {
+                        $opt_arg = $opt_v[4] ? self::walk( $args, $opt_v[4] ) : (isset($args[$opt_v[0]]) ? $args[$opt_v[0]] : null);
+                        if ( (0 === $opt_v[1] && !isset($opt_arg)) ||
+                            (1 === $opt_v[1] && isset($opt_arg))
+                        )
+                        {
+                            $render = false;
+                            break;
+                        }
+                    }
+                    if ( $render )
+                    {
+                        if ( 1 === $t[ 4 ] )
+                        {
+                            $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
+                            $tpl = $t[ 8 ]; $i = 0; $l = count($tpl);
+                            $rarg = null; $ri = 0;
+                            continue;
+                        }
+                        else
+                        {
+                            $opt_arg = $t[2] ? self::walk( $args, $t[2] )/*nested key*/ : $args[$s]/*plain key*/;
+                            $arr = is_array( $opt_arg ); $arr_len = $arr ? count($opt_arg) : 1;
+                            if ( $arr && ($t[5] !== $t[6]) && ($arr_len > $t[ 5 ]) )
+                            {
+                                $rs = $t[ 5 ];
+                                $re = -1 === $t[ 6 ] ? $arr_len-1 : min($t[ 6 ], $arr_len-1);
+                                if ( $re >= $rs )
+                                {
+                                    $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
+                                    $tpl = $t[ 8 ]; $i = 0; $l = count($tpl);
+                                    $rarg = $s;
+                                    for($ri=$re; $ri>$rs; $ri--) $stack[] = array($tpl, 0, $l, $rarg, $ri);
+                                    $ri = $rs;
+                                    continue;
+                                }
+                            }
+                            else if ( !$arr && ($t[5] === $t[6]) )
+                            {
+                                $stack[] = array($tpl, $i+1, $l, $rarg, $ri);
+                                $tpl = $t[ 8 ]; $i = 0; $l = count($tpl);
+                                $rarg = $s; $ri = 0;
+                                continue;
+                            }
+                        }
+                    }
+                }
+            }
+            else if ( 1 === $tt )
+            {
+                // default value if missing
+                $opt_arg = $t[2] ? self::walk( $args, $t[2] )/*nested key*/ : (isset($args[$s]) ? $args[$s] : null)/*plain key*/;
+                $out .= !isset($opt_arg) && (null !== $t[ 3 ])
+                    ? $t[ 3 ]
+                    : (is_array($opt_arg)
+                    ? ($s === $rarg
+                    ? $opt_arg[$t[6]===$t[7]?$t[6]:$ri]
+                    : $opt_arg[$t[6]])
+                    : $opt_arg)
+                ;
+            }
+            else /*if ( 0 === $tt )*/
+            {
+                $out .= $s;
+            }
+            $i++;
         }
         return $out;
     }
@@ -630,7 +820,7 @@ class XpresionOp extends XpresionTok
         
         $this->fixity = null !== $fixity ? $fixity : Xpresion::PREFIX;
         $this->associativity = null !== $associativity ? $associativity : Xpresion::DEFAUL;
-        $this->priority = $priority;
+        $this->priority = null !== $priority ? $priority : 1000;
         $this->arity = $opdef[3];
         $this->arity_min = $opdef[4];
         $this->arity_max = $opdef[5];
@@ -767,10 +957,10 @@ class XpresionFunc extends XpresionOp
     public function __construct($input='', $output='', $otype=null, $priority=1, $arity=1, $associativity=null, $fixity=null)
     {
         parent::__construct(
-            is_string($input) ? array($input, $arity) : $input, 
+            is_string($input) ? array($input, null !== $arity ? $arity : 1) : $input, 
             Xpresion::PREFIX, 
             null !== $associativity ? $associativity : Xpresion::RIGHT, 
-            $priority, 
+            null !== $priority ? $priority : 1, 
             /*1, */
             $output, 
             $otype, 
@@ -893,7 +1083,7 @@ class XpresionFn
 
 class Xpresion
 {
-    const VERSION = "0.6.2";
+    const VERSION = "1.0.0";
     
     const COMMA       =   ',';
     const LPAREN      =   '(';
@@ -1422,7 +1612,34 @@ class Xpresion
         if (is_array($obj) || is_object($obj))
         {
             if (!$OPERATORS) $OPERATORS =& Xpresion::$OPERATORS_S;
-            foreach ((array)$obj as $k=>$v) $OPERATORS[ $k ] = $v;
+            foreach ((array)$obj as $k=>$op)
+            {
+                if ( !$op ) continue;
+                
+                if ( $op instanceof XpresionAlias || $op instanceof XpresionOp )
+                {
+                    $OPERATORS[ $k ] = $op;
+                    continue;
+                }
+                
+                $op = (array)$op;
+                if ( isset($op['polymorphic']) )
+                {
+                }
+                else
+                {
+                    $OPERATORS[ $k ] = new XpresionOp(
+                    // input, output,  fixity,   associativity,   priority, /*arity,*/ otype, ofixity
+                    $op['input'],
+                    $op['output'],
+                    isset($op['fixity']) ? $op['fixity'] : null,
+                    isset($op['associativity']) ? $op['associativity'] : null,
+                    isset($op['priority']) ? $op['priority'] : null,
+                    isset($op['otype']) ? $op['otype'] : null,
+                    isset($op['ofixity']) ? $op['ofixity'] : null
+                    );
+                }
+            }
         }
         return $OPERATORS;
     }
@@ -1432,7 +1649,28 @@ class Xpresion
         if (is_array($obj) || is_object($obj))
         {
             if (!$FUNCTIONS) $FUNCTIONS =& Xpresion::$FUNCTIONS_S;
-            foreach ((array)$obj as $k=>$v) $FUNCTIONS[ $k ] = $v;
+            foreach ((array)$obj as $k=>$op)
+            {
+                if ( !$op ) continue;
+                
+                if ( $op instanceof XpresionAlias || $op instanceof XpresionFunc )
+                {
+                    $FUNCTIONS[ $k ] = $op;
+                    continue;
+                }
+                
+                $op = (array)$op;
+                $FUNCTIONS[ $k ] = new XpresionFunc(
+                // input, output,  fixity,   associativity,   priority, /*arity,*/ otype, ofixity
+                $op['input'],
+                $op['output'],
+                isset($op['fixity']) ? $op['fixity'] : null,
+                isset($op['associativity']) ? $op['associativity'] : null,
+                isset($op['priority']) ? $op['priority'] : null,
+                isset($op['otype']) ? $op['otype'] : null,
+                isset($op['ofixity']) ? $op['ofixity'] : null
+                );
+            }
         }
         return $FUNCTIONS;
     }

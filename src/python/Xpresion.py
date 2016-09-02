@@ -3,12 +3,332 @@
 #
 #   Xpresion
 #   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
-#   @version: 0.6.2
+#   @version: 1.0.0
 #
 #   https://github.com/foo123/Xpresion
 #
 ##
 import re, time, datetime, calendar, math, pprint 
+
+# https://github.com/foo123/GrammarTemplate
+def is_array( v ):
+    return isinstance(v, (list,tuple))
+    
+
+def walk( obj, keys ):
+    o = obj
+    l = len(keys)
+    i = 0
+    while i < l:
+        k = keys[i]
+        i += 1
+        if o is not None:
+            if isinstance(o,(list,tuple)) and int(k)<len(o):
+                o = o[k]
+            elif isinstance(o,dict) and (k in o):
+                o = o[k]
+            else:
+                try:
+                    o = getattr(o, k)
+                except AttributeError:
+                    return None
+        else: return None
+    return o
+    
+
+class GrammarTemplate:
+    """
+    GrammarTemplate for Python,
+    https://github.com/foo123/GrammarTemplate
+    """
+    
+    VERSION = '1.1.0'
+    
+    def multisplit( tpl, delims ):
+        IDL = delims[0]
+        IDR = delims[1]
+        OBL = delims[2]
+        OBR = delims[3]
+        lenIDL = len(IDL)
+        lenIDR = len(IDR)
+        lenOBL = len(OBL)
+        lenOBR = len(OBR)
+        ESC = '\\'
+        OPT = '?'
+        OPTR = '*'
+        NEG = '!'
+        DEF = '|'
+        REPL = '{'
+        REPR = '}'
+        default_value = None
+        negative = 0
+        optional = 0
+        rest = 0
+        l = len(tpl)
+        i = 0
+        a = [[], None, None, 0, 0, 0, 0, None]
+        stack = []
+        s = ''
+        escaped = False
+        while i < l:
+            
+            ch = tpl[i]
+            if ESC == ch:
+                escaped = not escaped
+                i += 1
+                
+            if IDL == tpl[i:i+lenIDL]:
+                if escaped:
+                    s += IDL
+                    i += lenIDL
+                    escaped = False
+                    continue
+            
+                i += lenIDL
+                if len(s): a[0].append([0, s])
+                s = ''
+            
+            elif IDR == tpl[i:i+lenIDR]:
+                if escaped:
+                    s += IDR
+                    i += lenIDR
+                    escaped = False
+                    continue
+            
+                i += lenIDR
+                # argument
+                argument = s
+                s = ''
+                p = argument.find(DEF)
+                if -1 < p:
+                    default_value = argument[p+1:]
+                    argument = argument[0:p]
+                else:
+                    default_value = None
+                c = argument[0]
+                if OPT == c or OPTR == c:
+                    optional = 1
+                    if OPTR == c:
+                        start_i = 1
+                        end_i = -1
+                    else:
+                        start_i = 0
+                        end_i = 0
+                    argument = argument[1:]
+                    if NEG == argument[0]:
+                        negative = 1
+                        argument = argument[1:]
+                    else:
+                        negative = 0
+                elif REPL == c:
+                    s = ''
+                    j = 1
+                    jl = len(argument)
+                    while j < jl and REPR != argument[j]:
+                        s += argument[j]
+                        j += 1
+                    argument = argument[j+1:]
+                    s = s.split(',')
+                    if len(s) > 1:
+                        start_i = s[0].strip()
+                        start_i = int(start_i,10) if len(start_i) else 0
+                        end_i = s[1].strip()
+                        end_i = int(end_i,10) if len(end_i) else -1
+                        optional = 1
+                    else:
+                        start_i = s[0].strip()
+                        start_i = int(start_i,10) if len(start_i) else 0
+                        end_i = start_i
+                        optional = 0
+                    s = ''
+                    negative = 0
+                else:
+                    optional = 0
+                    negative = 0
+                    start_i = 0
+                    end_i = 0
+                if negative and default_value is None: default_value = ''
+                
+                p = argument.find('.')
+                if -1 < p:
+                    nested = argument.split('.')
+                else:
+                    nested = None
+            
+                if optional and not a[3]:
+                    a[1] = argument
+                    a[2] = nested
+                    a[3] = optional
+                    a[4] = negative
+                    a[5] = start_i
+                    a[6] = end_i
+                    # handle multiple optional arguments for same optional block
+                    a[7] = [[argument,negative,start_i,end_i,nested]]
+                elif optional:
+                    # handle multiple optional arguments for same optional block
+                    a[7].append([argument,negative,start_i,end_i,nested])
+                elif (not optional) and (a[1] is None):
+                    a[1] = argument
+                    a[2] = nested
+                    a[3] = 0
+                    a[4] = negative
+                    a[5] = start_i
+                    a[6] = end_i
+                    a[7] = [[argument,negative,start_i,end_i,nested]]
+                a[0].append([1, argument, nested, default_value, optional, negative, start_i, end_i])
+            
+            elif OBL == tpl[i:i+lenOBL]:
+                if escaped:
+                    s += OBL
+                    i += lenOBL
+                    escaped = False
+                    continue
+            
+                i += lenOBL
+                # optional block
+                if len(s): a[0].append([0, s])
+                s = ''
+                stack.append(a)
+                a = [[], None, None, 0, 0, 0, 0, None]
+            
+            elif OBR == tpl[i:i+lenOBR]:
+                if escaped:
+                    s += OBR
+                    i += lenOBR
+                    escaped = False
+                    continue
+            
+                i += lenOBR
+                b = a
+                a = stack.pop(-1)
+                if len(s): b[0].append([0, s])
+                s = ''
+                a[0].append([-1, b[1], b[2], b[3], b[4], b[5], b[6], b[7], b[0]])
+            else:
+                if ESC == ch:
+                    s += ch
+                else:
+                    s += tpl[i]
+                    i += 1
+        
+        if len(s): a[0].append([0, s])
+        return a[0]
+
+    #defaultDelims = ['<','>','[',']','?','*','!','|','{','}']
+    defaultDelims = ['<','>','[',']']
+    
+    def __init__(self, tpl='', delims=None):
+        self.id = None
+        self.tpl = None
+        # lazy init
+        self._args = [ tpl, delims if delims else GrammarTemplate.defaultDelims ]
+        self._parsed = False
+
+    def __del__(self):
+        self.dispose()
+        
+    def dispose(self):
+        self.id = None
+        self.tpl = None
+        self._args = None
+        self._parsed = None
+        return self
+    
+    def parse(self):
+        if self._parsed is False:
+            # lazy init
+            self._parsed = True
+            self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1] )
+            self._args = None
+        return self
+    
+    def render(self, args=None):
+        if self._parsed is False:
+            # lazy init
+            self.parse( )
+        
+        if None == args: args = { }
+        tpl = self.tpl
+        l = len(tpl)
+        stack = []
+        rarg = None
+        ri = 0
+        out = ''
+        i = 0
+        while i < l or len(stack):
+            if i >= l:
+                p = stack.pop(-1)
+                tpl = p[0]
+                i = p[1]
+                l = p[2]
+                rarg = p[3]
+                ri = p[4]
+                continue
+            
+            t = tpl[ i ]
+            tt = t[ 0 ]
+            s = t[ 1 ]
+            
+            if -1 == tt:
+                
+                # optional block
+                opts_vars = t[ 7 ]
+                if opts_vars and len(opts_vars):
+                    
+                    render = True
+                    for opt_v in opts_vars:
+                        opt_arg = walk( args, opt_v[4] ) if opt_v[4] else (args[opt_v[0]] if opt_v[0] in args else None)
+                        if ((0 == opt_v[1]) and (opt_arg is None)) or ((1 == opt_v[1]) and (opt_arg is not None)):
+                            render = False
+                            break
+                    
+                    if render:
+                        
+                        if 1 == t[ 4 ]:
+                            stack.append([tpl, i+1, l, rarg, ri])
+                            tpl = t[ 8 ]
+                            i = 0
+                            l = len(tpl)
+                            rarg = None
+                            ri = 0
+                            continue
+                        
+                        else:
+                            opt_arg = walk( args, t[2] ) if t[2] else args[s]
+                            arr = is_array( opt_arg )
+                            if arr and (t[5] != t[6]) and len(opt_arg) > t[ 5 ]:
+                                rs = t[ 5 ]
+                                re = len(opt_arg)-1 if -1 == t[ 6 ] else min(t[ 6 ], len(opt_arg)-1)
+                                if re >= rs:
+                                    stack.append([tpl, i+1, l, rarg, ri])
+                                    tpl = t[ 8 ]
+                                    i = 0
+                                    l = len(tpl)
+                                    rarg = s
+                                    for ri in range(re,rs,-1): stack.append([tpl, 0, l, rarg, ri])
+                                    ri = rs
+                                    continue
+                                    
+                            elif (not arr) and (t[5] == t[6]):
+                                stack.append([tpl, i+1, l, rarg, ri])
+                                tpl = t[ 8 ]
+                                i = 0
+                                l = len(tpl)
+                                rarg = s
+                                ri = 0
+                                continue
+            
+            elif 1 == tt:
+                # default value if missing
+                opt_arg = walk( args, t[2] ) if t[2] else (args[s] if s in args else None)
+                out += str(t[3]) if (opt_arg is None) and t[ 3 ] is not None else (str(opt_arg[(t[6] if t[6]==t[7] else ri)] if s == rarg else opt_arg[t[6]]) if is_array(opt_arg) else str(opt_arg))
+            
+            else: #if 0 == tt
+                out += s
+            
+            i += 1
+        
+        return out
 
 # static
 CNT = 0
@@ -23,14 +343,14 @@ def createFunction( args, sourceCode, additional_symbols=dict() ):
     # The list of symbols that are included by default in the generated
     # function's environment
     SAFE_SYMBOLS = [
-        "list", "dict", "enumerate", "tuple", "set", "long", "float", "object",
-        "bool", "callable", "True", "False", "dir",
-        "frozenset", "getattr", "hasattr", "abs", "cmp", "complex",
-        "divmod", "id", "pow", "round", "slice", "vars",
-        "hash", "hex", "int", "isinstance", "issubclass", "len",
-        "map", "filter", "max", "min", "oct", "chr", "ord", "range",
-        "reduce", "repr", "str", "type", "zip", "xrange", "None",
-        "Exception", "KeyboardInterrupt"
+    "list", "dict", "enumerate", "tuple", "set", "long", "float", "object",
+    "bool", "callable", "True", "False", "dir",
+    "frozenset", "getattr", "hasattr", "abs", "cmp", "complex",
+    "divmod", "id", "pow", "round", "slice", "vars",
+    "hash", "hex", "int", "isinstance", "issubclass", "len",
+    "map", "filter", "max", "min", "oct", "chr", "ord", "range",
+    "reduce", "repr", "str", "type", "zip", "xrange", "None",
+    "Exception", "KeyboardInterrupt"
     ]
     
     # Also add the standard exceptions
@@ -70,7 +390,6 @@ def createFunction( args, sourceCode, additional_symbols=dict() ):
 
     # Include the safe symbols
     for k in SAFE_SYMBOLS:
-        
         # try from current locals
         try:
           locs[k] = locals()[k]
@@ -144,14 +463,14 @@ def evaluator_factory(evaluator_str,Fn,Cache):
 
 
 default_date_locale = {
-'meridian': { 'am':'am', 'pm':'pm', 'AM':'AM', 'PM':'PM' },
-'ordinal': { 'ord':{1:'st',2:'nd',3:'rd'}, 'nth':'th' },
-'timezone': [ 'UTC','EST','MDT' ],
-'timezone_short': [ 'UTC','EST','MDT' ],
-'day': [ 'Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday' ],
-'day_short': [ 'Sun','Mon','Tue','Wed','Thu','Fri','Sat' ],
-'month': [ 'January','February','March','April','May','June','July','August','September','October','November','December' ],
-'month_short': [ 'Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec' ]
+ 'meridian': { 'am':'am', 'pm':'pm', 'AM':'AM', 'PM':'PM' }
+,'ordinal': { 'ord':{1:'st',2:'nd',3:'rd'}, 'nth':'th' }
+,'timezone': [ 'UTC','EST','MDT' ]
+,'timezone_short': [ 'UTC','EST','MDT' ]
+,'day': [ 'Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday' ]
+,'day_short': [ 'Sun','Mon','Tue','Wed','Thu','Fri','Sat' ]
+,'month': [ 'January','February','March','April','May','June','July','August','September','October','November','December' ]
+,'month_short': [ 'Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec' ]
 }
 
 def php_time( ):
@@ -302,147 +621,6 @@ T_EMPTY     =   1024
 
 T_REGEXP = type(NEWLINE)
 
-class Tpl:
-    
-    def multisplit(tpl, reps, as_array=False):
-        a = [ [1, tpl] ]
-        reps = enumerate(reps) if as_array else reps.items()
-        for r,s in reps:
-        
-            c = [ ] 
-            sr = s if as_array else r
-            s = [0, s]
-            for ai in a:
-            
-                if 1 == ai[ 0 ]:
-                
-                    b = ai[ 1 ].split( sr )
-                    bl = len(b)
-                    c.append( [1, b[0]] )
-                    if bl > 1:
-                        for bj in b[1:]:
-                        
-                            c.append( s )
-                            c.append( [1, bj] )
-                        
-                else:
-                
-                    c.append( ai )
-                
-            
-            a = c
-        return a
-
-    def multisplit_re( tpl, rex ):
-        a = [ ]
-        i = 0
-        m = rex.search(tpl, i)
-        while m:
-            a.append([1, tpl[i:m.start()]])
-            try:
-                mg = m.group(1)
-            except:
-                mg = m.group(0)
-            is_numeric = False
-            try:
-                mn = int(mg,10)
-                is_numeric = False if math.isnan(mn) else True
-            except ValueError:
-                is_numeric = False
-            a.append([0, mn if is_numeric else mg])
-            i = m.end()
-            m = rex.search(tpl, i)
-        a.append([1, tpl[i:]])
-        return a
-    
-    def arg(key=None, argslen=None):
-        out = 'args'
-        
-        if None != key:
-        
-            if isinstance(key,str):
-                key = key.split('.') if len(key) else []
-            else: 
-                key = [key]
-            #givenArgsLen = bool(None !=argslen and isinstance(argslen,str))
-            
-            for k in key:
-                kn = int(k,10) if isinstance(k,str) else k
-                if math.isnan(kn):
-                    out += '["' + str(k) + '"]';
-                else:
-                    out += '[' + str(kn) + ']';
-                
-        return out
-
-    def compile(tpl, raw=False):
-        global NEWLINE
-        global SQUOTE
-        
-        if True == raw:
-        
-            out = 'return ('
-            for tpli in tpl:
-            
-                notIsSub = tpli[ 0 ] 
-                s = tpli[ 1 ]
-                out += s if notIsSub else Tpl.arg(s)
-            
-            out += ')'
-            
-        else:
-        
-            out = 'return ('
-            for tpli in tpl:
-            
-                notIsSub = tpli[ 0 ]
-                s = tpli[ 1 ]
-                if notIsSub: out += "'" + re.sub(NEWLINE, "' + \"\\n\" + '", re.sub(SQUOTE, "\\'", s)) + "'"
-                else: out += " + str(" + Tpl.arg(s,"argslen") + ") + "
-            
-            out += ')'
-        
-        return createFunction('args', "    " + out)
-
-    
-    defaultArgs = re.compile(r'\$(-?[0-9]+)')
-    
-    def __init__(self, tpl='', replacements=None, compiled=False):
-        global T_REGEXP
-        
-        self.id = None
-        self.tpl = None
-        self._renderer = None
-        
-        if not replacements: replacements = Tpl.defaultArgs
-        self.tpl = Tpl.multisplit_re( tpl, replacements ) if isinstance(replacements, T_REGEXP) else Tpl.multisplit( tpl, replacements )
-        if compiled is True: self._renderer = Tpl.compile( self.tpl )
-
-    def __del__(self):
-        self.dispose()
-        
-    def dispose(self):
-        self.id = None
-        self.tpl = None
-        self._renderer = None
-        return self
-    
-    def render(self, args=None):
-        if None == args: args = [ ]
-        
-        if self._renderer: return self._renderer( args )
-        
-        out = ''
-        
-        for tpli in self.tpl:
-        
-            notIsSub = tpli[ 0 ] 
-            s = tpli[ 1 ]
-            out += s if notIsSub else str(args[ s ])
-        
-        return out
-    
-
 
 class Node:
     # depth-first traversal
@@ -555,7 +733,6 @@ class Node:
 
 
 class Alias:
-    
     def get_entry(entries, id):
         if id and entries and (id in entries):
             # walk/bypass aliases, if any
@@ -577,7 +754,6 @@ class Alias:
         
 
 class Tok:
-    
     def render(t): 
         if isinstance(t, Tok): return t.render()
         return str(t)
@@ -648,7 +824,6 @@ class Tok:
     
 
 class Op(Tok):
-
     def Condition(f):
         return [
         f[0] if callable(f[0]) else Tpl.compile(Tpl.multisplit(f[0],{'${POS}':0,'${TOKS}':1,'${OPS}':2,'${TOK}':3,'${OP}':4,'${PREV_IS_OP}':5,'${DEDUCED_TYPE}':6,'Xpresion':7}), True)
@@ -712,13 +887,13 @@ class Op(Tok):
         
         super(Op, self).__init__(self.type, self.parts[0], output)
         
-        self.fixity = fixity if None!=fixity else PREFIX
-        self.associativity = associativity if None!=associativity else DEFAULT
-        self.priority = priority
+        self.fixity = fixity if fixity is not None else PREFIX
+        self.associativity = associativity if associativity is not None else DEFAULT
+        self.priority = priority if priority is not None else 1000
         self.arity = opdef[3]
         #self.arity = arity
-        self.otype = otype if None!=otype else T_DFT
-        self.ofixity = ofixity if None!=ofixity else self.fixity
+        self.otype = otype if otype is not None else T_DFT
+        self.ofixity = ofixity if ofixity is not None else self.fixity
         self.parenthesize = False
         self.revert = False
         self.morphes = None
@@ -820,7 +995,7 @@ class Op(Tok):
 class Func(Op):
     
     def __init__(self, input='', output='', otype=None, priority=1, arity=1, associativity=None, fixity=None):
-        super(Func, self).__init__([input, arity] if isinstance(input, str) else input, PREFIX, associativity if None!= associativity else RIGHT, priority, output, otype, fixity if None!=fixity else PREFIX)
+        super(Func, self).__init__([input, arity if arity is not None else 1] if isinstance(input, str) else input, PREFIX, associativity if associativity is not None else RIGHT, priority if priority is not None else 1, output, otype, fixity if None!=fixity else PREFIX)
         self.type = T_FUN
     
     def __del__(self):
@@ -898,7 +1073,7 @@ class Xpresion:
     https://github.com/foo123/Xpresion
     """
     
-    VERSION = "0.6.2"
+    VERSION = "1.0.0"
     
     COMMA       = COMMA
     LPAREN      = LPAREN
@@ -934,7 +1109,8 @@ class Xpresion:
     _inited = False
     _configured = False
     
-    Tpl = Tpl
+    Tpl = GrammarTemplate
+    GrammarTemplate = GrammarTemplate
     Node = Node
     Alias = Alias
     Tok = Tok
@@ -1329,13 +1505,50 @@ class Xpresion:
     def defOp(obj, OPERATORS=None):
         if isinstance(obj,dict):
             OPERATORS = OPERATORS if None!=OPERATORS else Xpresion.OPERATORS
-            for k in obj: OPERATORS[ k ] = obj[ k ]
+            for k in obj:
+                op = obj[ k ]
+                if not op: continue
+                
+                if isinstance(op, Alias) or isinstance(op, Op):
+                    OPERATORS[ k ] = op
+                    continue
+                
+                if ('polymorphic' in op) and (op['polymorphic']):
+                    pass
+                else:
+                    OPERATORS[ k ] = Op(
+                    # input, output,  fixity,   associativity,   priority, /*arity,*/ otype, ofixity
+                    op['input'],
+                    op['output'],
+                    op['fixity'] if 'fixity' in op else None,
+                    op['associativity'] if 'associativity' in op else None,
+                    op['priority'] if 'priority' in op else None,
+                    op['otype'] if 'otype' in op else None,
+                    op['ofixity'] if 'ofixity' in op else None
+                    )
         return OPERATORS
     
     def defFunc(obj, FUNCTIONS=None):
         if isinstance(obj,dict):
             FUNCTIONS = FUNCTIONS if None!=FUNCTIONS else Xpresion.FUNCTIONS
-            for k in obj: FUNCTIONS[ k ] = obj[ k ]
+            for k in obj:
+                op = obj[ k ]
+                if not op: continue
+                
+                if isinstance(op, Alias) or isinstance(op, Func):
+                    FUNCTIONS[ k ] = op
+                    continue
+                
+                FUNCTIONS[ k ] = Func(
+                # input, output, otype, priority, arity, associativity, fixity
+                op['input'],
+                op['output'],
+                op['otype'] if 'otype' in op else None,
+                op['priority'] if 'priority' in op else None,
+                op['arity'] if 'arity' in op else None,
+                op['associativity'] if 'associativity' in op else None,
+                op['fixity'] if 'fixity' in op else None
+                )
         return FUNCTIONS
     
     def defRuntimeFunc(obj, Fn=None):
