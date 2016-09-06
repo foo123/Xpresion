@@ -3,6 +3,8 @@ Xpr3s10n
 
 a simple, fast and flexible eXpression parser engine (with custom functions and variables support) for PHP, Python, Node/XPCOM/JS, ActionScript
 
+**version 1.0.0 in progress**
+
 
 ![Xpresion](/xpresion.jpg)
 
