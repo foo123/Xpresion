@@ -81,7 +81,7 @@ However, since `Xpresion` is a parser engine, adding a default configuration, it
 
 ####Live Examples
 
-* [Interactive Example](https://foo123.github.io/examples/xpresion)
+* [Interactive Playground Example](https://foo123.github.io/examples/xpresion)
 
 ####Examples
 
