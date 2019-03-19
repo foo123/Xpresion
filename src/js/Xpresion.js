@@ -1,7 +1,7 @@
 /**
 *
 *   Xpresion
-*   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node/JS, ActionScript
+*   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node.js and Browser
 *   @version: 1.0.0
 *
 *   https://github.com/foo123/Xpresion
@@ -19,17 +19,17 @@ else if ( ('function'===typeof define)&&define.amd&&('function'===typeof require
     define(name,['module'],function(module){factory.moduleUri = module.uri; return factory.call(root);});
 else if ( !(name in root) ) /* Browser/WebWorker/.. */
     (root[name] = factory.call(root)||1)&&('function'===typeof(define))&&define.amd&&define(function(){return root[name];} );
-}(  /* current root */          this, 
+}(  /* current root */          'undefined' !== typeof self ? self : this,
     /* module name */           "Xpresion",
     /* module factory */        function ModuleFactory__Xpresion( undef ){
 "use strict";
 
 var __version__ = "1.0.0",
-    PROTO = 'prototype', HAS = 'hasOwnProperty', toString = Object[PROTO].toString,
-    toJSON = JSON.stringify, Keys = Object.keys, Extend = Object.create, 
+    PROTO = 'prototype', hasOwnProperty = Object[PROTO].hasOwnProperty, toString = Object[PROTO].toString,
+    toJSON = JSON.stringify, Keys = Object.keys, Extend = Object.create,
     floor = Math.floor, round = Math.round, abs = Math.abs, max = Math.max,
     NEWLINE = /\n\r|\r\n|\n|\r/g, SQUOTE = /'/g,
-    EMPTY_TOKEN, BLOCKS = 'BLOCKS', OPS = 'OPERATORS', FUNCS = 'FUNCTIONS',
+    EMPTY_TOKEN,
     default_date_locale = {
      meridian: { am:'am', pm:'pm', AM:'AM', PM:'PM' }
     ,ordinal: { ord:{1:'st',2:'nd',3:'rd'}, nth:'th' }
@@ -44,29 +44,161 @@ var __version__ = "1.0.0",
     trim_re = /^\s+|\s+$/g,
     trim = String[PROTO].trim
         ? function( s ){ return s.trim(); }
-        : function( s ){ return s.replace(trim_re, ''); }
+        : function( s ){ return s.replace(trim_re, ''); },
     __inited = false, __configured = false, TPL_ID = 0
 ;
 
 // https://github.com/foo123/GrammarTemplate
+function HAS( o, x )
+{
+    return o && hasOwnProperty.call(o, x) ? 1 : 0;
+}
+function pad( s, n, z, pad_right )
+{
+    var ps = String(s);
+    z = z || '0';
+    if ( pad_right ) while ( ps.length < n ) ps += z;
+    else while ( ps.length < n ) ps = z + ps;
+    return ps;
+}
 function guid( )
 {
-    return 'grtpl--'+new Date().getTime()+'--'+(++TPL_ID);
+    guid.GUID += 1;
+    return pad(new Date().getTime().toString(16),12)+'--'+pad(guid.GUID.toString(16),4);
 }
-function is_array( o )
+guid.GUID = 0;
+function is_array( x )
 {
-    return o instanceof Array || '[object Array]' === toString.call(o);
+    return (x instanceof Array) || ('[object Array]' === toString.call(x));
 }
-function walk( obj, keys )
+/*function is_string( x )
 {
-    var o = obj, l = keys.length, i = 0, k;
-    while( i < l )
+    return (x instanceof String) || ('[object String]' === toString.call(x));
+}*/
+function compute_alignment( s, i, l )
+{
+    var alignment = '', c;
+    while ( i < l )
     {
-        k = keys[i++];
-        if ( (null != o) && (null != o[k]) ) o = o[k];
-        else return null;
+        c = s[CHAR](i);
+        if ( (" " === c) || ("\r" === c) || ("\t" === c) || ("\v" === c) || ("\0" === c) )
+        {
+            alignment += c;
+            i += 1;
+        }
+        else
+        {
+            break;
+        }
     }
-    return o;
+    return alignment;
+}
+function align( s, alignment )
+{
+    var aligned, c, i, l = s.length;
+    if ( l && alignment.length )
+    {
+        aligned = '';
+        for(i=0; i<l; i++)
+        {
+            c = s[CHAR](i);
+            aligned += c;
+            if ( "\n" === c ) aligned += alignment;
+        }
+    }
+    else
+    {
+        aligned = s;
+    }
+    return aligned;
+}
+function walk( obj, keys, keys_alt, obj_alt )
+{
+    var o, l, i, k, found = 0;
+    if ( keys )
+    {
+        o = obj;
+        l = keys.length;
+        i = 0;
+        found = 1;
+        while( i < l )
+        {
+            k = keys[i++];
+            if ( (null != o) && (null != o[k]) )
+            {
+                o = o[k];
+            }
+            else
+            {
+                found = 0;
+                break;
+            }
+        }
+    }
+    if ( !found && keys_alt )
+    {
+        o = obj;
+        l = keys_alt.length;
+        i = 0;
+        found = 1;
+        while( i < l )
+        {
+            k = keys_alt[i++];
+            if ( (null != o) && (null != o[k]) )
+            {
+                o = o[k];
+            }
+            else
+            {
+                found = 0;
+                break;
+            }
+        }
+    }
+    if ( !found && (null != obj_alt) && (obj_alt !== obj) )
+    {
+        if ( keys )
+        {
+            o = obj_alt;
+            l = keys.length;
+            i = 0;
+            found = 1;
+            while( i < l )
+            {
+                k = keys[i++];
+                if ( (null != o) && (null != o[k]) )
+                {
+                    o = o[k];
+                }
+                else
+                {
+                    found = 0;
+                    break;
+                }
+            }
+        }
+        if ( !found && keys_alt )
+        {
+            o = obj_alt;
+            l = keys_alt.length;
+            i = 0;
+            found = 1;
+            while( i < l )
+            {
+                k = keys_alt[i++];
+                if ( (null != o) && (null != o[k]) )
+                {
+                    o = o[k];
+                }
+                else
+                {
+                    found = 0;
+                    break;
+                }
+            }
+        }
+    }
+    return found ? o : null;
 }
 function StackEntry( stack, value )
 {
@@ -81,20 +213,25 @@ function TplEntry( node, tpl )
     this.next = null;
 }
 
-function multisplit( tpl, delims )
+function multisplit( tpl, delims, postop )
 {
     var IDL = delims[0], IDR = delims[1],
-        OBL = delims[2], OBR = delims[3], TPL = delims[4],
+        OBL = delims[2], OBR = delims[3],
         lenIDL = IDL.length, lenIDR = IDR.length,
-        lenOBL = OBL.length, lenOBR = OBR.length, lenTPL = TPL.length,
-        ESC = '\\', OPT = '?', OPTR = '*', NEG = '!', DEF = '|',
-        REPL = '{', REPR = '}', DOT = '.', REF = ':',
-        default_value = null, negative = 0, optional = 0, nested, start_i, end_i, template,
-        argument, p, stack, c, a, b, s, l = tpl.length, i, j, jl, escaped, ch,
+        lenOBL = OBL.length, lenOBR = OBR.length,
+        ESC = '\\', OPT = '?', OPTR = '*', NEG = '!', DEF = '|', COMMENT = '#',
+        TPL = ':=', REPL = '{', REPR = '}', DOT = '.', REF = ':', ALGN = '@', //NOTALGN = '&',
+        COMMENT_CLOSE = COMMENT+OBR,
+        default_value = null, negative = 0, optional = 0,
+        nested, aligned = 0, localised = 0, start_i, end_i, template,
+        argument, p, stack, c, a, b, s, l = tpl.length, i, j, jl,
         subtpl, arg_tpl, cur_tpl, start_tpl, cur_arg, opt_args,
-        roottpl, block, cur_block, prev_arg, prev_opt_args;
-    
-    a = new TplEntry({type: 0, val: ''});
+        roottpl, block, cur_block, prev_arg, prev_opt_args,
+        delim1 = [IDL, lenIDL, IDR, lenIDR], delim2 = [OBL, lenOBL, OBR, lenOBR],
+        delim_order = [null,0,null,0,null,0,null,0], delim;
+
+    postop = true === postop;
+    a = new TplEntry({type: 0, val: '', algn: ''});
     cur_arg = {
         type    : 1,
         name    : null,
@@ -103,52 +240,93 @@ function multisplit( tpl, delims )
         dval    : null,
         opt     : 0,
         neg     : 0,
+        algn    : 0,
+        loc     : 0,
         start   : 0,
         end     : 0
     };
     roottpl = a; block = null;
     opt_args = null; subtpl = {}; cur_tpl = null; arg_tpl = {}; start_tpl = null;
-    stack = null; s = ''; escaped = false;
-    
+
+    // hard-coded merge-sort for arbitrary delims parsing based on str len
+    if ( delim1[1] < delim1[3] )
+    {
+        s = delim1[0]; delim1[2] = delim1[0]; delim1[0] = s;
+        i = delim1[1]; delim1[3] = delim1[1]; delim1[1] = i;
+    }
+    if ( delim2[1] < delim2[3] )
+    {
+        s = delim2[0]; delim2[2] = delim2[0]; delim2[0] = s;
+        i = delim2[1]; delim2[3] = delim2[1]; delim2[1] = i;
+    }
+    start_i = 0; end_i = 0; i = 0;
+    while ( (4 > start_i) && (4 > end_i) )
+    {
+        if ( delim1[start_i+1] < delim2[end_i+1] )
+        {
+            delim_order[i] = delim2[end_i];
+            delim_order[i+1] = delim2[end_i+1];
+            end_i += 2;
+        }
+        else
+        {
+            delim_order[i] = delim1[start_i];
+            delim_order[i+1] = delim1[start_i+1];
+            start_i += 2;
+        }
+        i += 2;
+    }
+    while ( 4 > start_i )
+    {
+        delim_order[i] = delim1[start_i];
+        delim_order[i+1] = delim1[start_i+1];
+        start_i += 2; i += 2;
+    }
+    while ( 4 > end_i )
+    {
+        delim_order[i] = delim2[end_i];
+        delim_order[i+1] = delim2[end_i+1];
+        end_i += 2; i += 2;
+    }
+
+    stack = null; s = '';
+
     i = 0;
     while( i < l )
     {
-        ch = tpl[CHAR](i);
-        if ( ESC === ch )
+        c = tpl[CHAR](i);
+        if ( ESC === c )
         {
-            escaped = !escaped;
-            i += 1;
+            s += i+1 < l ? tpl[CHAR](i+1) : '';
+            i += 2;
+            continue;
         }
-        
-        if ( IDL === tpl.substr(i,lenIDL) )
+
+        delim = null;
+        if ( delim_order[0] === tpl.substr(i,delim_order[1]) )
+            delim = delim_order[0];
+        else if ( delim_order[2] === tpl.substr(i,delim_order[3]) )
+            delim = delim_order[2];
+        else if ( delim_order[4] === tpl.substr(i,delim_order[5]) )
+            delim = delim_order[4];
+        else if ( delim_order[6] === tpl.substr(i,delim_order[7]) )
+            delim = delim_order[6];
+
+        if ( IDL === delim )
         {
             i += lenIDL;
-            
-            if ( escaped )
-            {
-                s += IDL;
-                escaped = false;
-                continue;
-            }
-            
+
             if ( s.length )
             {
                 if ( 0 === a.node.type ) a.node.val += s;
-                else a = new TplEntry({type: 0, val: s}, a);
+                else a = new TplEntry({type: 0, val: s, algn: ''}, a);
             }
             s = '';
         }
-        else if ( IDR === tpl.substr(i,lenIDR) )
+        else if ( IDR === delim )
         {
             i += lenIDR;
-            
-            if ( escaped )
-            {
-                s += IDR;
-                escaped = false;
-                continue;
-            }
-            
+
             // argument
             argument = s; s = '';
             if ( -1 < (p=argument.indexOf(DEF)) )
@@ -160,7 +338,14 @@ function multisplit( tpl, delims )
             {
                 default_value = null;
             }
-            c = argument[CHAR](0);
+            if ( postop )
+            {
+                c = i < l ? tpl[CHAR](i) : '';
+            }
+            else
+            {
+                c = argument[CHAR](0);
+            }
             if ( OPT === c || OPTR === c )
             {
                 optional = 1;
@@ -174,35 +359,60 @@ function multisplit( tpl, delims )
                     start_i = 0;
                     end_i = 0;
                 }
-                argument = argument.slice(1);
-                if ( NEG === argument[CHAR](0) )
+                if ( postop )
                 {
-                    negative = 1;
-                    argument = argument.slice(1);
+                    i += 1;
+                    if ( (i < l) && (NEG === tpl[CHAR](i)) )
+                    {
+                        negative = 1;
+                        i += 1;
+                    }
+                    else
+                    {
+                        negative = 0;
+                    }
                 }
                 else
                 {
-                    negative = 0;
+                    if ( NEG === argument[CHAR](1) )
+                    {
+                        negative = 1;
+                        argument = argument.slice(2);
+                    }
+                    else
+                    {
+                        negative = 0;
+                        argument = argument.slice(1);
+                    }
                 }
             }
             else if ( REPL === c )
             {
-                s = ''; j = 1; jl = argument.length;
-                while ( j < jl && REPR !== argument[CHAR](j) ) s += argument[CHAR](j++);
-                argument = argument.slice( j+1 );
+                if ( postop )
+                {
+                    s = ''; j = i+1; jl = l;
+                    while ( (j < jl) && (REPR !== tpl[CHAR](j)) ) s += tpl[CHAR](j++);
+                    i = j+1;
+                }
+                else
+                {
+                    s = ''; j = 1; jl = argument.length;
+                    while ( (j < jl) && (REPR !== argument[CHAR](j)) ) s += argument[CHAR](j++);
+                    argument = argument.slice( j+1 );
+                }
                 s = s.split(',');
                 if ( s.length > 1 )
                 {
                     start_i = trim(s[0]);
-                    start_i = start_i.length ? parseInt(start_i,10)||0 : 0;
+                    start_i = start_i.length ? (+start_i)|0 /*parseInt(start_i,10)||0*/ : 0;
                     end_i = trim(s[1]);
-                    end_i = end_i.length ? parseInt(end_i,10)||0 : -1;
+                    end_i = end_i.length ? (+end_i)|0 /*parseInt(end_i,10)||0*/ : -1;
                     optional = 1;
                 }
                 else
                 {
                     start_i = trim(s[0]);
-                    start_i = start_i.length ? parseInt(start_i,10)||0 : 0;
+                    start_i = start_i.length ? (+start_i)|0 /*parseInt(start_i,10)||0*/ : 0;
                     end_i = start_i;
                     optional = 0;
                 }
@@ -217,28 +427,50 @@ function multisplit( tpl, delims )
                 end_i = 0;
             }
             if ( negative && (null === default_value) ) default_value = '';
-            
+
+            c = argument[CHAR](0);
+            if ( ALGN === c )
+            {
+                aligned = 1;
+                argument = argument.slice(1);
+            }
+            else
+            {
+                aligned = 0;
+            }
+
+            c = argument[CHAR](0);
+            if ( DOT === c )
+            {
+                localised = 1;
+                argument = argument.slice(1);
+            }
+            else
+            {
+                localised = 0;
+            }
+
             template = -1 < argument.indexOf(REF) ? argument.split(REF) : [argument,null];
             argument = template[0]; template = template[1];
             nested = -1 < argument.indexOf(DOT) ? argument.split(DOT) : null;
-            
-            if ( cur_tpl && !arg_tpl[cur_tpl] ) arg_tpl[cur_tpl] = {};
-            
-            if ( TPL+OBL === tpl.substr(i,lenTPL+lenOBL) )
+
+            if ( cur_tpl && !HAS(arg_tpl,cur_tpl) ) arg_tpl[cur_tpl] = {};
+
+            if ( TPL+OBL === tpl.substr(i,2+lenOBL) )
             {
                 // template definition
-                i += lenTPL;
-                template = template&&template.length ? template : guid( );
+                i += 2;
+                template = template&&template.length ? template : 'grtpl--'+guid( );
                 start_tpl = template;
                 if ( cur_tpl && argument.length)
                     arg_tpl[cur_tpl][argument] = template;
             }
-            
+
             if ( !argument.length ) continue; // template definition only
-            
-            if ( (null==template) && cur_tpl && arg_tpl[cur_tpl] && arg_tpl[cur_tpl][argument] )
+
+            if ( (null==template) && cur_tpl && HAS(arg_tpl,cur_tpl) && HAS(arg_tpl[cur_tpl],argument) )
                 template = arg_tpl[cur_tpl][argument];
-            
+
             if ( optional && !cur_arg.opt )
             {
                 cur_arg.name = argument;
@@ -247,15 +479,31 @@ function multisplit( tpl, delims )
                 cur_arg.dval = default_value;
                 cur_arg.opt = optional;
                 cur_arg.neg = negative;
+                cur_arg.algn = aligned;
+                cur_arg.loc = localised;
                 cur_arg.start = start_i;
                 cur_arg.end = end_i;
                 // handle multiple optional arguments for same optional block
-                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i]);
+                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i,optional,localised]);
             }
             else if ( optional )
             {
                 // handle multiple optional arguments for same optional block
-                opt_args = new StackEntry(opt_args, [argument,nested,negative,start_i,end_i]);
+                if ( (start_i !== end_i) && (cur_arg.start === cur_arg.end) )
+                {
+                    // set as main arg a loop arg, if exists
+                    cur_arg.name = argument;
+                    cur_arg.key = nested;
+                    cur_arg.stpl = template;
+                    cur_arg.dval = default_value;
+                    cur_arg.opt = optional;
+                    cur_arg.neg = negative;
+                    cur_arg.algn = aligned;
+                    cur_arg.loc = localised;
+                    cur_arg.start = start_i;
+                    cur_arg.end = end_i;
+                }
+                opt_args = new StackEntry(opt_args, [argument,nested,negative,start_i,end_i,optional,localised]);
             }
             else if ( !optional && (null === cur_arg.name) )
             {
@@ -265,39 +513,51 @@ function multisplit( tpl, delims )
                 cur_arg.dval = default_value;
                 cur_arg.opt = 0;
                 cur_arg.neg = negative;
+                cur_arg.algn = aligned;
+                cur_arg.loc = localised;
                 cur_arg.start = start_i;
                 cur_arg.end = end_i;
                 // handle multiple optional arguments for same optional block
-                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i]);
+                opt_args = new StackEntry(null, [argument,nested,negative,start_i,end_i,0,localised]);
             }
+            if ( 0 === a.node.type ) a.node.algn = compute_alignment(a.node.val, 0, a.node.val.length);
             a = new TplEntry({
                 type    : 1,
                 name    : argument,
                 key     : nested,
                 stpl    : template,
                 dval    : default_value,
+                opt     : optional,
+                algn    : aligned,
+                loc     : localised,
                 start   : start_i,
                 end     : end_i
             }, a);
         }
-        else if ( OBL === tpl.substr(i,lenOBL) )
+        else if ( OBL === delim )
         {
             i += lenOBL;
-            
-            if ( escaped )
-            {
-                s += OBL;
-                escaped = false;
-                continue;
-            }
-            
-            // optional block
+
             if ( s.length )
             {
                 if ( 0 === a.node.type ) a.node.val += s;
-                else a = new TplEntry({type: 0, val: s}, a);
+                else a = new TplEntry({type: 0, val: s, algn: ''}, a);
             }
             s = '';
+
+            // comment
+            if ( COMMENT === tpl[CHAR](i) )
+            {
+                j = i+1; jl = l;
+                while ( (j < jl) && (COMMENT_CLOSE !== tpl.substr(j,lenOBR+1)) ) s += tpl[CHAR](j++);
+                i = j+lenOBR+1;
+                if ( 0 === a.node.type ) a.node.algn = compute_alignment(a.node.val, 0, a.node.val.length);
+                a = new TplEntry({type: -100, val: s}, a);
+                s = '';
+                continue;
+            }
+
+            // optional block
             stack = new StackEntry(stack, [a, block, cur_arg, opt_args, cur_tpl, start_tpl]);
             if ( start_tpl ) cur_tpl = start_tpl;
             start_tpl = null;
@@ -309,24 +569,19 @@ function multisplit( tpl, delims )
                 dval    : null,
                 opt     : 0,
                 neg     : 0,
+                algn    : 0,
+                loc     : 0,
                 start   : 0,
                 end     : 0
             };
             opt_args = null;
-            a = new TplEntry({type: 0, val: ''});
+            a = new TplEntry({type: 0, val: '', algn: ''});
             block = a;
         }
-        else if ( OBR === tpl.substr(i,lenOBR) )
+        else if ( OBR === delim )
         {
             i += lenOBR;
-            
-            if ( escaped )
-            {
-                s += OBR;
-                escaped = false;
-                continue;
-            }
-            
+
             b = a;
             cur_block = block;
             prev_arg = cur_arg;
@@ -348,7 +603,7 @@ function multisplit( tpl, delims )
             if ( s.length )
             {
                 if ( 0 === b.node.type ) b.node.val += s;
-                else b = new TplEntry({type: 0, val: s}, b);
+                else b = new TplEntry({type: 0, val: s, algn: ''}, b);
             }
             s = '';
             if ( start_tpl )
@@ -357,8 +612,10 @@ function multisplit( tpl, delims )
                     type    : 2,
                     name    : prev_arg.name,
                     key     : prev_arg.key,
-                    start   : 0/*cur_arg.start*/,
-                    end     : 0/*cur_arg.end*/,
+                    loc     : prev_arg.loc,
+                    algn    : prev_arg.algn,
+                    start   : prev_arg.start,
+                    end     : prev_arg.end,
                     opt_args: null/*opt_args*/,
                     tpl     : cur_block
                 });
@@ -366,10 +623,13 @@ function multisplit( tpl, delims )
             }
             else
             {
+                if ( 0 === a.node.type ) a.node.algn = compute_alignment(a.node.val, 0, a.node.val.length);
                 a = new TplEntry({
                     type    : -1,
                     name    : prev_arg.name,
                     key     : prev_arg.key,
+                    loc     : prev_arg.loc,
+                    algn    : prev_arg.algn,
                     start   : prev_arg.start,
                     end     : prev_arg.end,
                     opt_args: prev_opt_args,
@@ -379,173 +639,252 @@ function multisplit( tpl, delims )
         }
         else
         {
-            if ( ESC === ch ) s += ch;
-            else s += tpl[CHAR](i++);
+            c = tpl[CHAR](i++);
+            if ( "\n" === c )
+            {
+                // note line changes to handle alignments
+                if ( s.length )
+                {
+                    if ( 0 === a.node.type ) a.node.val += s;
+                    else a = new TplEntry({type: 0, val: s, algn: ''}, a);
+                }
+                s = '';
+                if ( 0 === a.node.type ) a.node.algn = compute_alignment(a.node.val, 0, a.node.val.length);
+                a = new TplEntry({type: 100, val: "\n"}, a);
+            }
+            else
+            {
+                s += c;
+            }
         }
     }
     if ( s.length )
     {
         if ( 0 === a.node.type ) a.node.val += s;
-        else a = new TplEntry({type: 0, val: s}, a);
+        else a = new TplEntry({type: 0, val: s, algn: ''}, a);
     }
+    if ( 0 === a.node.type ) a.node.algn = compute_alignment(a.node.val, 0, a.node.val.length);
     return [roottpl, subtpl];
 }
 
-function optional_block( SUB, args, block, index )
+function optional_block( args, block, SUB, FN, index, alignment, orig_args )
 {
-    var opt_vars, opt_v, opt_arg, arr, rs, re, ri, out = '';
-    
+    var opt_vars, opt_v, opt_arg, arr, rs, re, ri, len, block_arg = null, out = '';
+
     if ( -1 === block.type )
     {
         // optional block, check if optional variables can be rendered
-        opt_vars = block.opt_args; if ( !opt_vars ) return '';
-        while( opt_vars )
+        opt_vars = block.opt_args;
+        // if no optional arguments, render block by default
+        if ( opt_vars && opt_vars.value[5] )
         {
-            opt_v = opt_vars.value;
-            opt_arg = opt_v[1] ? walk( args, opt_v[1] ) : args[opt_v[0]];
-            if ( (0 === opt_v[2] && null == opt_arg) ||
-                (1 === opt_v[2] && null != opt_arg)
-            )
-                return '';
-            opt_vars = opt_vars.prev;
+            while( opt_vars )
+            {
+                opt_v = opt_vars.value;
+                opt_arg = walk( args, opt_v[1], [String(opt_v[0])], opt_v[6] ? null : orig_args );
+                if ( (null === block_arg) && (block.name === opt_v[0]) ) block_arg = opt_arg;
+
+                if ( (0 === opt_v[2] && null == opt_arg) ||
+                    (1 === opt_v[2] && null != opt_arg)
+                )
+                    return '';
+                opt_vars = opt_vars.prev;
+            }
         }
-    }
-    
-    if ( block.key )
-    {
-        opt_arg = walk( args, block.key )/*nested key*/;
-        if ( (null == opt_arg) && args[HAS](block.name) ) opt_arg = args[block.name];
     }
     else
     {
-        opt_arg = args[block.name]/*plain key*/;
+        block_arg = walk( args, block.key, [String(block.name)], block.loc ? null : orig_args );
     }
-    arr = is_array( opt_arg );
-    if ( arr && (opt_arg.length > block.start) )
+
+    arr = is_array( block_arg ); len = arr ? block_arg.length : -1;
+    //if ( !block.algn ) alignment = '';
+    if ( arr && (len > block.start) )
     {
-        for(rs=block.start,re=(-1===block.end?opt_arg.length-1:Math.min(block.end, opt_arg.length-1)),ri=rs; ri<=re; ri++)
-            out += main( SUB, args, block.tpl, ri );
+        for(rs=block.start,re=(-1===block.end?len-1:Math.min(block.end,len-1)),ri=rs; ri<=re; ri++)
+            out += main( args, block.tpl, SUB, FN, ri, alignment, orig_args );
     }
     else if ( !arr && (block.start === block.end) )
     {
-        out = main( SUB, args, block.tpl, null );
+        out = main( args, block.tpl, SUB, FN, null, alignment, orig_args );
     }
     return out;
 }
-function non_terminal( SUB, args, symbol, index )
+function non_terminal( args, symbol, SUB, FN, index, alignment, orig_args )
 {
-    var opt_arg, tpl_args, tpl, out = '';
-    if ( SUB && symbol.stpl && SUB[symbol.stpl] )
+    var opt_arg, tpl_args, tpl, out = '', fn;
+    if ( symbol.stpl && (
+        HAS(SUB,symbol.stpl) ||
+        HAS(GrammarTemplate.subGlobal,symbol.stpl) ||
+        HAS(FN,symbol.stpl) || HAS(FN,'*') ||
+        HAS(GrammarTemplate.fnGlobal,symbol.stpl) ||
+        HAS(GrammarTemplate.fnGlobal,'*')
+    ) )
     {
-        // using sub-template
-        if ( symbol.key )
+        // using custom function or sub-template
+        opt_arg = walk( args, symbol.key, [String(symbol.name)], symbol.loc ? null : orig_args );
+
+        if ( HAS(SUB,symbol.stpl) || HAS(GrammarTemplate.subGlobal,symbol.stpl) )
         {
-            opt_arg = walk( args, symbol.key )/*nested key*/;
-            if ( (null == opt_arg) && args[HAS](symbol.name) ) opt_arg = args[symbol.name];
-        }
-        else
-        {
-            opt_arg = args[symbol.name]/*plain key*/;
-        }
-        if ( null != index && is_array(opt_arg) )
-        {
-            opt_arg = opt_arg[index];
-        }
-        if ( (null == opt_arg) && (null !== symbol.dval) )
-        {
-            // default value if missing
-            out = symbol.dval;
-        }
-        else
-        {
-            // try to associate sub-template parameters to actual input arguments
-            tpl = SUB[symbol.stpl].node; tpl_args = {};
-            if ( null != opt_arg )
+            // sub-template
+            if ( (null != index) && ((0 !== index) || (symbol.start !== symbol.end) || !symbol.opt) && is_array(opt_arg) )
             {
-                /*if ( opt_arg[HAS](tpl.name) && !opt_arg[HAS](symbol.name) ) tpl_args = opt_arg;
-                else tpl_args[tpl.name] = opt_arg;*/
-                if ( is_array(opt_arg) ) tpl_args[tpl.name] = opt_arg;
-                else tpl_args = opt_arg;
+                opt_arg = index < opt_arg.length ? opt_arg[ index ] : null;
             }
-            out = optional_block( SUB, tpl_args, tpl, null );
+
+            if ( (null == opt_arg) && (null !== symbol.dval) )
+            {
+                // default value if missing
+                out = symbol.dval;
+            }
+            else
+            {
+                // try to associate sub-template parameters to actual input arguments
+                tpl = HAS(SUB,symbol.stpl) ? SUB[symbol.stpl].node : GrammarTemplate.subGlobal[symbol.stpl].node;
+                tpl_args = {};
+                if ( null != opt_arg )
+                {
+                    /*if ( HAS(opt_arg,tpl.name) && !HAS(opt_arg,symbol.name) ) tpl_args = opt_arg;
+                    else tpl_args[tpl.name] = opt_arg;*/
+                    if ( is_array(opt_arg) ) tpl_args[tpl.name] = opt_arg;
+                    else tpl_args = opt_arg;
+                }
+                out = optional_block( tpl_args, tpl, SUB, FN, null, symbol.algn ? alignment : '', null == orig_args ? args : orig_args );
+                //if ( symbol.algn ) out = align(out, alignment);
+            }
         }
+        else //if ( fn )
+        {
+            // custom function
+            fn = null;
+            if      ( HAS(FN,symbol.stpl) )                         fn = FN[symbol.stpl];
+            else if ( HAS(FN,'*') )                                 fn = FN['*'];
+            else if ( HAS(GrammarTemplate.fnGlobal,symbol.stpl) )   fn = GrammarTemplate.fnGlobal[symbol.stpl];
+            else if ( GrammarTemplate.fnGlobal['*'] )               fn = GrammarTemplate.fnGlobal['*'];
+
+            if ( is_array(opt_arg) )
+            {
+                index = null != index ? index : symbol.start;
+                opt_arg = index < opt_arg.length ? opt_arg[ index ] : null;
+            }
+
+            if ( "function" === typeof fn )
+            {
+                var fn_arg = {
+                    //value               : opt_arg,
+                    symbol              : symbol,
+                    index               : index,
+                    currentArguments    : args,
+                    originalArguments   : orig_args,
+                    alignment           : alignment
+                };
+                opt_arg = fn( opt_arg, fn_arg );
+            }
+            else
+            {
+                opt_arg = String(fn);
+            }
+
+            out = (null == opt_arg) && (null !== symbol.dval) ? symbol.dval : String(opt_arg);
+            if ( symbol.algn ) out = align(out, alignment);
+        }
+    }
+    else if ( symbol.opt && (null !== symbol.dval) )
+    {
+        // boolean optional argument
+        out = symbol.dval;
     }
     else
     {
         // plain symbol argument
-        if ( symbol.key )
-        {
-            opt_arg = walk( args, symbol.key )/*nested key*/;
-            if ( (null == opt_arg) && args[HAS](symbol.name) ) opt_arg = args[symbol.name];
-        }
-        else
-        {
-            opt_arg = args[symbol.name]/*plain key*/;
-        }
+        opt_arg = walk( args, symbol.key, [String(symbol.name)], symbol.loc ? null : orig_args );
+
         // default value if missing
         if ( is_array(opt_arg) )
         {
-            opt_arg = null != index ? opt_arg[index] : opt_arg[symbol.start];
+            index = null != index ? index : symbol.start;
+            opt_arg = index < opt_arg.length ? opt_arg[ index ] : null;
         }
         out = (null == opt_arg) && (null !== symbol.dval) ? symbol.dval : String(opt_arg);
+        if ( symbol.algn ) out = align(out, alignment);
     }
     return out;
 }
-function main( SUB, args, tpl, index )
+function main( args, tpl, SUB, FN, index, alignment, orig_args )
 {
-    var tt, out = '';
+    alignment = alignment || '';
+    var tt, current_alignment = alignment, out = '';
     while ( tpl )
     {
         tt = tpl.node.type;
-        out += (-1 === tt
-            ? optional_block( SUB, args, tpl.node, index ) /* optional code-block */
-            : (1 === tt
-            ? non_terminal( SUB, args, tpl.node, index ) /* non-terminal */
-            : tpl.node.val /* terminal */
-        ));
+        if ( -1 === tt ) /* optional code-block */
+        {
+            out += optional_block( args, tpl.node, SUB, FN, index, tpl.node.algn ? current_alignment : alignment, orig_args );
+        }
+        else if ( 1 === tt ) /* non-terminal */
+        {
+            out += non_terminal( args, tpl.node, SUB, FN, index, tpl.node.algn ? current_alignment : alignment, orig_args );
+        }
+        else if ( 0 === tt ) /* terminal */
+        {
+            current_alignment += tpl.node.algn;
+            out += tpl.node.val;
+        }
+        else if ( 100 === tt ) /* new line */
+        {
+            current_alignment = alignment;
+            out += "\n" + alignment;
+        }
+        /*else if ( -100 === tt ) /* comment * /
+        {
+            /* pass * /
+        }*/
         tpl = tpl.next;
     }
     return out;
 }
 
 
-function GrammarTemplate( tpl, delims )
+function GrammarTemplate( tpl, delims, postop )
 {
     var self = this;
-    if ( !(self instanceof GrammarTemplate) ) return new GrammarTemplate(tpl, delims);
+    if ( !(self instanceof GrammarTemplate) ) return new GrammarTemplate(tpl, delims, postop);
     self.id = null;
     self.tpl = null;
+    self.fn = {};
     // lazy init
-    self._args = [tpl||'', delims||GrammarTemplate.defaultDelims];
-    self._parsed = false;
+    self._args = [tpl||'', delims||GrammarTemplate.defaultDelimiters, postop||false];
 };
-GrammarTemplate.VERSION = '2.0.0';
-GrammarTemplate.defaultDelims = ['<','>','[',']',':='/*,'?','*','!','|','{','}'*/];
+GrammarTemplate.VERSION = '3.0.0';
+GrammarTemplate.defaultDelimiters = ['<','>','[',']'];
+GrammarTemplate.fnGlobal = {};
+GrammarTemplate.subGlobal = {};
+GrammarTemplate.guid = guid;
 GrammarTemplate.multisplit = multisplit;
+GrammarTemplate.align = align;
 GrammarTemplate.main = main;
 GrammarTemplate[PROTO] = {
     constructor: GrammarTemplate
-    
+
     ,id: null
     ,tpl: null
-    ,_parsed: false
+    ,fn: null
     ,_args: null
-    
+
     ,dispose: function( ) {
         var self = this;
         self.id = null;
         self.tpl = null;
+        self.fn = null;
         self._args = null;
-        self._parsed = null;
         return self;
     }
     ,parse: function( ) {
         var self = this;
-        if ( false === self._parsed )
+        if ( (null === self.tpl) && (null !== self._args) )
         {
             // lazy init
-            self._parsed = true;
-            self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1] );
+            self.tpl = GrammarTemplate.multisplit( self._args[0], self._args[1], self._args[2] );
             self._args = null;
         }
         return self;
@@ -553,8 +892,8 @@ GrammarTemplate[PROTO] = {
     ,render: function( args ) {
         var self = this;
         // lazy init
-        if ( false === self._parsed ) self.parse( );
-        return GrammarTemplate.main( self.tpl[1], null==args ? {} : args, self.tpl[0] );
+        if ( null === self.tpl ) self.parse( );
+        return GrammarTemplate.main( null==args ? {} : args, self.tpl[0], self.tpl[1], self.fn );
     }
 };
 
@@ -572,12 +911,16 @@ function is_string( v )
 {
     return (v instanceof String) || ('[object String]' === toString.call(v));
 }
+function is_object( v )
+{
+    return /*(v instanceof Object) ||*/ ('[object Object]' === toString.call(v));
+}
 function starts_with( s, p, i )
 {
     i = i || 0;
     return s.length-i >= p.length && p === s.substr(i, p.length);
 }
-function pad( s, len, ch )
+function pad_( s, len, ch )
 {
     var sp = s.toString( ), n = len-sp.length;
     return n > 0 ? new Array(n+1).join(ch||' ')+sp : sp;
@@ -588,17 +931,18 @@ function time( )
 }
 function date( format, timestamp )
 {
+    if ( !arguments.length ) return '';
     var formatted_datetime, f, i, l, jsdate,
         locale = default_date_locale
     ;
-    
+
     // JS Date
     if ( timestamp instanceof Date ) jsdate = new Date( timestamp );
     // UNIX timestamp (auto-convert to int)
     else if ( "number" === typeof timestamp ) jsdate =  new Date(timestamp * 1000);
     // undefined
     else/*if ( null === timestamp  || undef === timestamp )*/ jsdate = new Date( );
-    
+
     var D = { }, tzo = jsdate.getTimezoneOffset( ), atzo = abs(tzo), m = jsdate.getMonth( ), jmod10;
     // 24-Hours; 0..23
     D.G = jsdate.getHours( );
@@ -613,7 +957,7 @@ function date( format, timestamp )
     // ISO-8601 day of week; 1[Mon]..7[Sun]
     D.N = D.w || 7;
     // Day of month w/leading 0; 01..31
-    D.d = pad(D.j, 2, '0');
+    D.d = pad_(D.j, 2, '0');
     // Shorthand day name; Mon...Sun
     D.D = locale.day_short[ D.w ];
     // Full day name; Monday...Sunday
@@ -623,11 +967,11 @@ function date( format, timestamp )
     // Day of year; 0..365
     D.z = round((new Date(D.Y, m, D.j) - new Date(D.Y, 0, 1)) / 864e5);
     // ISO-8601 week number
-    D.W = pad(1 + round((new Date(D.Y, m, D.j - D.N + 3) - new Date(D.Y, 0, 4)) / 864e5 / 7), 2, '0');
+    D.W = pad_(1 + round((new Date(D.Y, m, D.j - D.N + 3) - new Date(D.Y, 0, 4)) / 864e5 / 7), 2, '0');
     // Full month name; January...December
     D.F = locale.month[ m ];
     // Month w/leading 0; 01...12
-    D.m = pad(D.n, 2, '0');
+    D.m = pad_(D.n, 2, '0');
     // Shorthand month name; Jan...Dec
     D.M = locale.month_short[ m ];
     // Days in month; 28...31
@@ -643,19 +987,19 @@ function date( format, timestamp )
     // AM or PM
     D.A = D.G > 11 ? locale.meridian.PM : locale.meridian.AM;
     // Swatch Internet time; 000..999
-    D.B = pad(floor((jsdate.getUTCHours( ) * 36e2 + jsdate.getUTCMinutes( ) * 60 + jsdate.getUTCSeconds( ) + 36e2) / 86.4) % 1e3, 3, '0');
+    D.B = pad_(floor((jsdate.getUTCHours( ) * 36e2 + jsdate.getUTCMinutes( ) * 60 + jsdate.getUTCSeconds( ) + 36e2) / 86.4) % 1e3, 3, '0');
     // 12-Hours; 1..12
     D.g = (D.G % 12) || 12;
     // 12-Hours w/leading 0; 01..12
-    D.h = pad(D.g, 2, '0');
+    D.h = pad_(D.g, 2, '0');
     // 24-Hours w/leading 0; 00..23
-    D.H = pad(D.G, 2, '0');
+    D.H = pad_(D.G, 2, '0');
     // Minutes w/leading 0; 00..59
-    D.i = pad(jsdate.getMinutes( ), 2, '0');
+    D.i = pad_(jsdate.getMinutes( ), 2, '0');
     // Seconds w/leading 0; 00..59
-    D.s = pad(jsdate.getSeconds( ), 2, '0');
+    D.s = pad_(jsdate.getSeconds( ), 2, '0');
     // Microseconds; 000000-999000
-    D.u = pad(jsdate.getMilliseconds( ) * 1000, 6, '0');
+    D.u = pad_(jsdate.getMilliseconds( ) * 1000, 6, '0');
     // Timezone identifier; e.g. Atlantic/Azores, ...
     // The following works, but requires inclusion of the very large
     // timezone_abbreviations_list() function.
@@ -665,7 +1009,7 @@ function date( format, timestamp )
     // DST observed?; 0 or 1
     D.I = ((new Date(D.Y, 0) - Date.UTC(D.Y, 0)) !== (new Date(D.Y, 6) - Date.UTC(D.Y, 6))) ? 1 : 0;
     // Difference to GMT in hour format; e.g. +0200
-    D.O = (tzo > 0 ? "-" : "+") + pad(floor(atzo / 60) * 100 + atzo % 60, 4, '0');
+    D.O = (tzo > 0 ? "-" : "+") + pad_(floor(atzo / 60) * 100 + atzo % 60, 4, '0');
     // Difference to GMT w/colon; e.g. +02:00
     D.P = (D.O.substr(0, 3) + ":" + D.O.substr(3, 2));
     // Timezone abbreviation; e.g. EST, MDT, ...
@@ -678,43 +1022,14 @@ function date( format, timestamp )
     D.c = [ D.Y,'-',D.m,'-',D.d,'\\',D.T,D.H,':',D.i,':',D.s,D.P ].join('');
     // RFC 2822 'D, d M Y H:i:s O'
     D.r = [ D.D,', ',D.d,' ',D.M,' ',D.Y,' ',D.H,':',D.i,':',D.s,' ',D.O ].join('');
-        
+
     formatted_datetime = '';
     for (i=0,l=format.length; i<l; i++)
     {
         f = format.charAt( i );
-        formatted_datetime += D[HAS](f) ? D[ f ] : f;
+        formatted_datetime += hasOwnProperty.call(D,f) ? D[ f ] : f;
     }
     return formatted_datetime;
-}
-function range( a, start, end, step )
-{
-    var al = a.length, b, bl, j, i, tmp;
-    if ( arguments.length < 4 )
-    {
-        step = 1;
-        if ( arguments.length < 3 )
-        {
-            end = al;
-            if ( arguments.length < 2 )
-            {
-                start = 0;
-            }
-        }
-    }
-    step = step || 1; start = start || 0; if ( 0 > end ) end += al;
-    if ( 0 > start || end < start || end > al ) return [];
-    if ( end === start ) return start < al ? [a[start]] : [];
-    bl = floor((end-start)/abs(step)); b = new Array(bl);
-    if ( 0 > step )
-    {
-        for (i=end-1,j=0; i>=0; i+=step,j++) b[j] = a[i];
-    }
-    else
-    {
-        for (i=start,j=0; i<end; i+=step,j++) b[j] = a[i];
-    }
-    return b;
 }
 function dummy( /*Var, Fn, Cache*/ )
 {
@@ -722,31 +1037,267 @@ function dummy( /*Var, Fn, Cache*/ )
 }
 function evaluator_factory(evaluator_str,Fn,Cache)
 {
-    var evaluator = F('Fn,Cache', [
+    var evaluator = F('Fn,Cache,Xpresion', [
      'return function evaluator(Var){'
     ,'    "use strict";'
     ,'    return ' + evaluator_str + ';'
     ,'};'
-    ].join("\n"))(Fn,Cache);
+    ].join("\n"))(Fn,Cache,Xpresion);
     return evaluator;
 }
 
-/*function trace( stack )
+function parse_re_flags(s,i,l)
 {
-    var out = [], i, l=stack.length;
-    for (i=0; i<l; i++) out.push(stack[i].toString());
-    return out.join(",\n");
-}*/
+    var flags = '',
+        has_i = false,
+        has_g = false,
+        has_m = false,
+        seq = 0,
+        i2 = i+seq,
+        not_done = true,
+        ch
+    ;
+    while (i2 < l && not_done)
+    {
+        ch = s.charAt(i2++);
+        seq += 1;
+        if ('i' == ch && !has_i)
+        {
+            flags += 'i';
+            has_i = true;
+        }
 
-function Xpresion( expr )
+        if ('m' == ch && !has_m)
+        {
+            flags += 'm';
+            has_m = true;
+        }
+
+        if ('g' == ch && !has_g)
+        {
+            flags += 'g';
+            has_g = true;
+        }
+
+        if (seq >= 3 || (!has_i && !has_g && !has_m))
+        {
+            not_done = false;
+        }
+    }
+    return flags;
+}
+
+function Configuration( conf )
 {
     var self = this;
-    if ( !(self instanceof Xpresion) ) return new Xpresion( expr );
-    self.source = expr || '';
-    self.setup( );
-    Xpresion.parse( self );
+
+    if ( !(self instanceof Configuration) )
+        return new Configuration(conf);
+
+    self.RE = {};
+    self.BLOCKS = {};
+    self.RESERVED = {};
+    self.OPERATORS = {};
+    self.FUNCTIONS = {};
+    self.FN = {
+         'INF'          : Infinity
+        ,'NAN'          : NaN
+    };
+
+    if ( "object" === typeof conf )
+    {
+        if ( conf.re )
+            self.defRE( conf.re );
+        if ( conf.blocks )
+            self.defBlock( conf.blocks );
+        if ( conf.reserved )
+            self.defReserved( conf.reserved );
+        if ( conf.operators )
+            self.defOp( conf.operators );
+        if ( conf.functions )
+            self.defFunc( conf.functions );
+        if ( conf.runtime )
+            self.defRuntimeFunc( conf.runtime );
+    }
+}
+Configuration[PROTO] = {
+    constructor: Configuration,
+
+    RE: null,
+    BLOCKS: null,
+    RESERVED: null,
+    OPERATORS: null,
+    FUNCTIONS: null,
+    FN: null,
+
+    dispose: function( ) {
+        var self = this;
+
+        self.RE = null;
+        self.BLOCKS = null;
+        self.RESERVED = null;
+        self.OPERATORS = null;
+        self.FUNCTIONS = null;
+        self.FN = null;
+
+        return self;
+    },
+
+    defRE: function( obj ) {
+        if ( 'object' === typeof obj )
+        {
+            for (var k in obj)
+            {
+                if ( hasOwnProperty.call(obj,k) )
+                    this.RE[ k ] = obj[ k ];
+            }
+        }
+        return this;
+    },
+    defBlock: function( obj ) {
+        if ( 'object' === typeof obj )
+        {
+            for (var k in obj)
+            {
+                if ( hasOwnProperty.call(obj,k) )
+                    this.BLOCKS[ k ] = obj[ k ];
+            }
+        }
+        return this;
+    },
+    defReserved: function( obj ) {
+        if ( 'object' === typeof obj )
+        {
+            for (var k in obj)
+            {
+                if ( hasOwnProperty.call(obj,k) )
+                    this.RESERVED[ k ] = obj[ k ];
+            }
+        }
+        return this;
+    },
+    defOp: function( obj ) {
+        if ( 'object' === typeof obj )
+        {
+            var k, op;
+            for (k in obj)
+            {
+                if ( !hasOwnProperty.call(obj,k) || !obj[ k ] ) continue;
+
+                op = obj[ k ];
+
+                if ( op instanceof Alias || op instanceof Op )
+                {
+                    this.OPERATORS[ k ] = op;
+                    continue;
+                }
+
+                if ( op.polymorphic )
+                {
+                    this.OPERATORS[ k ] = Op().Polymorphic(op.polymorphic.map(function(entry){
+                        var func, op;
+                        if ( is_object(entry) )
+                        {
+                            func = entry['check'];
+                            op = entry['op'];
+                        }
+                        else
+                        {
+                            func = entry[0];
+                            op = entry[1];
+                        }
+                        op = op instanceof Op ? op : new Op(
+                            op.input,
+                            op.output,
+                            op.otype,
+                            op.fixity,
+                            op.associativity,
+                            op.priority,
+                            op.ofixity
+                        );
+                        return [func, op];
+                    }));
+                }
+                else
+                {
+                    this.OPERATORS[ k ] = new Op(
+                        op.input,
+                        op.output,
+                        op.otype,
+                        op.fixity,
+                        op.associativity,
+                        op.priority,
+                        op.ofixity
+                    );
+                }
+            }
+        }
+        return this;
+    },
+    defFunc: function( obj ) {
+        if ( 'object' === typeof obj )
+        {
+            var k, op;
+            for (k in obj)
+            {
+                if ( !hasOwnProperty.call(obj,k) || !obj[ k ] ) continue;
+
+                op = obj[ k ];
+
+                if ( op instanceof Alias || op instanceof Func )
+                {
+                    this.FUNCTIONS[ k ] = op;
+                    continue;
+                }
+
+                this.FUNCTIONS[ k ] = new Func(
+                    op.input,
+                    op.output,
+                    op.otype,
+                    op.priority,
+                    op.arity,
+                    op.associativity,
+                    op.ofixity
+                );
+            }
+        }
+        return this;
+    },
+    defRuntimeFunc: function( obj ) {
+        if ( 'object' === typeof obj )
+        {
+            for (var k in obj)
+            {
+                if ( hasOwnProperty.call(obj,k) )
+                    this.FN[ k ] = obj[ k ];
+            }
+        }
+        return this;
+    }
+};
+
+function Xpresion( expr, conf )
+{
+    var self = this;
+    if ( !(self instanceof Xpresion) ) return new Xpresion( expr, conf );
+    if ( (!conf) || !(conf instanceof Configuration) )
+        conf = Xpresion.defaultConfiguration();
+    self.source = String(null==expr ? '' : expr);
+    self.dummy_evaluator = dummy;
+    Xpresion.parse( self, conf );
 }
 Xpresion.VERSION = __version__;
+
+Xpresion.Configuration = Configuration;
+
+Xpresion.CONF = null;
+Xpresion.defaultConfiguration = function(conf) {
+    if ( arguments.length )
+    {
+        Xpresion.CONF = conf;
+    }
+    return Xpresion.CONF;
+};
 
 // STATIC
 var
@@ -763,7 +1314,8 @@ var
 ,POSTFIX     = Xpresion.POSTFIX    =   8
 
 ,T_DUM       = Xpresion.T_DUM      =   0
-,T_DFT       = Xpresion.T_DFT      =   1
+,T_MIX       = Xpresion.T_MIX      =   1
+,T_DFT       = Xpresion.T_DFT      =   T_MIX
 ,T_IDE       = Xpresion.T_IDE      =   16
 ,T_VAR       = Xpresion.T_VAR      =   17
 ,T_LIT       = Xpresion.T_LIT      =   32
@@ -780,7 +1332,7 @@ var
 ,T_EMPTY     = Xpresion.T_EMPTY    =   1024
 ;
 
-Xpresion.Tpl = Xpresion.GrammarTemplate = GrammarTemplate;
+Xpresion.Tpl = GrammarTemplate;
 
 function Alias( alias )
 {
@@ -789,11 +1341,11 @@ function Alias( alias )
 }
 Xpresion.Alias = Alias;
 Alias.get_entry = function( entries, id ) {
-    if ( id && entries && entries[HAS](id) )
+    if ( id && entries && hasOwnProperty.call(entries,id) )
     {
         // walk/bypass aliases, if any
         var entry = entries[ id ];
-        while ( (entry instanceof Alias) && entries[HAS](entry.alias) ) 
+        while ( (entry instanceof Alias) && hasOwnProperty.call(entries,entry.alias) )
         {
             id = entry.alias;
             // circular reference
@@ -845,7 +1397,7 @@ Node[PROTO] = {
                 }
             }
         }
-        if ( is_next ) 
+        if ( is_next )
         {
             self.op_def.shift( );
             self.op_parts.shift( );
@@ -856,7 +1408,7 @@ Node[PROTO] = {
         return !this.op_parts.length;
     }
     ,dispose: function( ) {
-        var self = this, 
+        var self = this,
             c = self.children, l, i;
         if (c && (l=c.length))
         {
@@ -872,32 +1424,32 @@ Node[PROTO] = {
         c = self.children = null;
         return self;
     }
-    /*,toString: function( ) {
+    ,toString: function( ) {
         var out = [], n = this.node,
-            ch = this.children ? this.children : [], 
+            ch = this.children ? this.children : [],
             i, l = ch.length,
-            tab = arguments.length && arguments[0].substr ? arguments[0] : "",
+            tab = /*arguments.length && arguments[0].substr ? arguments[0] :*/ "",
             tab_tab = tab+"  "
         ;
-        for (i=0; i<l; i++) out.push(ch[i].toString(tab_tab));
+        for (i=0; i<l; i++) out.push(ch[i].toString(/*tab_tab*/));
         return tab + [
         "Node("+n.type+","+n.arity+"): " + (n.parts ? n.parts.join(' ') : n.input),
         "Childs: [",
         tab + out.join("\n" + tab),
         "]"
         ].join("\n"+tab) + "\n";
-    }*/
+    }
 };
 // depth-first traversal
 Node.DFT = function DFT( root, action, andDispose ) {
     /*
-        one can also implement a symbolic solver here, 
+        one can also implement a symbolic solver here,
         also known as "unification" in symbolic computation and rewrite systems
-        by manipulating the tree to produce 'x' on one side 
+        by manipulating the tree to produce 'x' on one side
         and the reverse operators/tokens on the other side
         i.e by transposing the top op on other side of the '=' op and using the 'associated inverse operator'
         in stack order (i.e most top op is transposed first etc.. until only the branch with 'x' stays on one side)
-        (easy when only one unknown in one state, more difficult for many unknowns 
+        (easy when only one unknown in one state, more difficult for many unknowns
         or one unknown in different states, e.g x and x^2 etc..)
     */
     andDispose = false !== andDispose;
@@ -906,7 +1458,7 @@ Node.DFT = function DFT( root, action, andDispose ) {
     while ( stack.length )
     {
         node = stack[ 0 ];
-        if ( node.children && node.children.length ) 
+        if ( node.children && node.children.length )
         {
             stack = node.children.concat( stack );
             node.children = null;
@@ -936,24 +1488,24 @@ Xpresion.reduce = function( token_queue, op_queue, nop_queue, current_op, pos, e
         lock their place on the OP_STACK
         until all the parts of the operator are
         unified and collapsed
-        
+
         Equivalently n-ary ops are like ops which relate NOT to
         args but to other ops
-        
-        In this way the BRA_KET special op handling 
+
+        In this way the BRA_KET special op handling
         can be made into an n-ary op with uniform handling
     */
     // TODO: maybe do some optimisation here when 2 operators can be combined into 1, etc..
     // e.g not is => isnot
-    
+
     if ( current_op )
     {
         opc = current_op;
-        
+
         // polymorphic operator
         // get the current operator morph, based on current context
         (T_POLY_OP === opc.type) && (opc = opc.morph([pos,token_queue,op_queue]));
-        
+
         // n-ary/multi-part operator, initial part
         // push to nop_queue/op_queue
         if ( T_N_OP === opc.type )
@@ -978,7 +1530,7 @@ Xpresion.reduce = function( token_queue, op_queue, nop_queue, current_op, pos, e
                 nop = nop_queue[0];
                 nop_index = nop.op_index;
             }
-            
+
             // n-ary/multi-part operator, further parts
             // combine one-by-one, until n-ary operator is complete
             if ( nop && nop.op_next(opc, pos, op_queue, token_queue) )
@@ -992,8 +1544,8 @@ Xpresion.reduce = function( token_queue, op_queue, nop_queue, current_op, pos, e
                     n = op.node(arity ? token_queue.splice(token_queue.length-arity, arity) : [], entry.pos);
                     token_queue.push( n );
                 }
-                
-                if ( nop.op_complete( ) ) 
+
+                if ( nop.op_complete( ) )
                 {
                     nop_queue.shift( );
                     op_queue.shift( );
@@ -1017,22 +1569,23 @@ Xpresion.reduce = function( token_queue, op_queue, nop_queue, current_op, pos, e
                     return false;
                 }
             }
-            
+
             fixity = opc.fixity;
             if ( POSTFIX === fixity )
             {
-                // postfix assumed to be already in correct order, 
+                // postfix assumed to be already in correct order,
                 // no re-structuring needed
-                if ( (arity = opc.arity) > token_queue.length && opc.arity_min <= token_queue.length ) arity = opc.arity_min;
+                arity = opc.arity;
+                if ( arity > token_queue.length && opc.arity_min <= token_queue.length ) arity = opc.arity_min;
                 n = opc.node(arity ? token_queue.splice(token_queue.length-arity, arity) : [], pos);
                 token_queue.push( n );
             }
             else if ( PREFIX === fixity )
             {
-                // prefix assumed to be already in reverse correct order, 
+                // prefix assumed to be already in reverse correct order,
                 // just push to op queue for later re-ordering
                 op_queue.unshift( Node(opc.otype, opc.arity, opc, null, pos) );
-                if ( (/*T_FUN*/T_OP & opc.type) && (0 === opc.arity) ) 
+                if ( (/*T_FUN*/T_OP & opc.type) && (0 === opc.arity) )
                 {
                     token_queue.push(EMPTY_TOKEN.node(null, pos+1));
                 }
@@ -1042,11 +1595,11 @@ Xpresion.reduce = function( token_queue, op_queue, nop_queue, current_op, pos, e
                 while ( op_queue.length > nop_index )
                 {
                     entry = op_queue.shift( ); op = entry.node;
-                    
-                    if ( (op.priority < opc.priority || 
-                        (op.priority === opc.priority && 
-                        (op.associativity < opc.associativity || 
-                        (op.associativity === opc.associativity && 
+
+                    if ( (op.priority < opc.priority ||
+                        (op.priority === opc.priority &&
+                        (op.associativity < opc.associativity ||
+                        (op.associativity === opc.associativity &&
                         op.associativity < 0))))
                     )
                     {
@@ -1070,7 +1623,7 @@ Xpresion.reduce = function( token_queue, op_queue, nop_queue, current_op, pos, e
     {
         while ( op_queue.length )
         {
-            entry = op_queue.shift( ); op = entry.node; 
+            entry = op_queue.shift( ); op = entry.node;
             arity = op.arity;
             if ( (T_OP & op.type) && 0 === arity ) arity = 1; // have already padded with empty token
             else if ( arity > token_queue.length && op.arity_min <= op.arity ) arity = op.arity_min;
@@ -1080,132 +1633,110 @@ Xpresion.reduce = function( token_queue, op_queue, nop_queue, current_op, pos, e
     }
 };
 
-Xpresion.parse_block = function( s, start, end, escaped, postfix ) {
-    if ( !starts_with( s, start, s.pos ) ) return false;
-    var block, pos, p, ch, esc, rest=false;
-    escaped = false !== escaped;
-    s.pos += start.length;
-    block = start;
-    pos = s.indexOf( end, s.pos );
-    while ( pos > -1 )
+Xpresion.parse_delimited_block = function parse_delimited_block(s, i, l, delim, is_escaped) {
+    if ( 5 > arguments.length ) is_escaped = true;
+    var p = delim, esc = false, ch = '';
+    is_escaped = (false !== is_escaped);
+    i += 1;
+    while (i < l)
     {
-        if ( !escaped )
-        {
-            block += s.slice(s.pos, pos+end.length);
-            s.pos = pos+end.length;
-            break;
-        }
-        else
-        {
-            p = pos-1; esc = false;
-            while ( p >= s.pos && '\\' === (ch=s.charAt(p)) )
-            {
-                esc = !esc;
-                p--;
-            }
-            if ( !esc )
-            {
-                block += s.slice(s.pos, pos+end.length);
-                s.pos = pos+end.length;
-                break;
-           }
-           else
-           {
-               pos = s.indexOf( end, s.pos+pos+end.length );
-           }
-        }
+        ch = s.charAt(i++);
+        p += ch;
+        if (delim === ch && !esc) break;
+        esc = is_escaped ? (!esc && ('\\' === ch)) : false;
     }
-    if ( -1 === pos )
-    {
-        block += s.slice( s.pos );
-        s.pos = s.length;
-    }
-    if ( postfix && s.pos < s.length && (rest=s.slice( s.pos ).match( postfix )) ) rest = rest[1] || rest[0];
-    return [block, rest];
+    return p;
 };
 
-Xpresion.parse = function( xpr ) {
+Xpresion.parse = function( xpr, conf ) {
     var expr, l
-        
-        ,e, ch, v, pos
+
+        ,e, ch, v, i
         ,m, t, AST, OPS, NOPS, t_index
-        
+
         ,reduce = Xpresion.reduce
         ,get_entry = Alias.get_entry
-        ,parse_block = Xpresion.parse_block
-        
-        ,RE = xpr.RE, BLOCK = xpr[BLOCKS], block
-        ,t_var_is_also_ident = !RE[HAS]('t_var')
-        ,evaluator, parsed
+
+        ,block
+        ,t_var_is_also_ident = !hasOwnProperty.call(conf.RE,'t_var')
+        ,evaluator, block_rest
         ,err = 0, errpos, errmsg, errors = {err: false, msg: ''}
     ;
-    
-    expr = new String(xpr.source);
-    l = expr.length; expr.pos = 0;
+
+    expr = String(xpr.source);
+    l = expr.length; i = 0;
     xpr._cnt = 0;
     xpr._symbol_table = { };
     xpr._cache = { };
     xpr.variables = { };
-    AST = [ ]; OPS = [ ]; NOPS = [ ]; 
+    AST = [ ]; OPS = [ ]; NOPS = [ ];
     t_index = 0;
     err = 0;
-    while ( expr.pos < l )
+    while ( i < l )
     {
-        pos = expr.pos;
-        ch = expr.charAt( pos );
-        
+        ch = expr.charAt( i );
+
         // use customized (escaped) delimited blocks here
         // TODO: add a "date" block as well with #..#
-        if ( block = get_entry(BLOCK, ch) ) // string or regex or date ('"`#)
+        if ( block = get_entry(conf.BLOCKS, ch) ) // string or regex or date ('"`#)
         {
-            v = parse_block( expr, block.block[0], block.block[1], block.escaped, block.postfix );
+            v = block.parse(expr, i, l, ch);
             if ( false !== v )
             {
-                t = xpr.t_block( v[0], block.type, v[1] );
+                i += v.length;
+                if ('function' === typeof block.rest)
+                {
+                    block_rest = block.rest(expr, i, l);
+                    if (!block_rest) block_rest = '';
+                }
+                else
+                {
+                    block_rest = '';
+                }
+
+                i += block_rest.length;
+
+                t = xpr.t_block( conf, v, block.type, block_rest );
                 if ( false !== t )
                 {
                     t_index += 1;
                     AST.push( t.node(null, t_index) );
                     continue;
                 }
-                else
-                {
-                    expr.pos = pos;
-                }
             }
         }
-        
-        e = expr.slice( pos );
-        
-        if ( m = e.match( RE.t_spc ) ) // space
+
+        e = expr.slice( i );
+
+        if ( m = e.match( conf.RE.t_spc ) ) // space
         {
-            expr.pos += m[ 1 ].length;
+            i += m[ 0 ].length;
             continue;
         }
 
-        if ( m = e.match( RE.t_num ) ) // number
+        if ( m = e.match( conf.RE.t_num ) ) // number
         {
-            t = xpr.t_liter( m[ 2 ], T_NUM );
+            t = xpr.t_liter( conf, m[ 1 ], T_NUM );
             if ( false !== t )
             {
                 t_index+=1;
                 AST.push( t.node(null, t_index) );
-                expr.pos += m[ 1 ].length;
+                i += m[ 0 ].length;
                 continue;
             }
         }
-        
-        if ( m = e.match( RE.t_ident ) ) // ident, reserved, function, operator, etc..
+
+        if ( m = e.match( conf.RE.t_ident ) ) // ident, reserved, function, operator, etc..
         {
-            t = xpr.t_liter( m[ 2 ], T_IDE ); // reserved keyword
+            t = xpr.t_liter( conf, m[ 1 ], T_IDE ); // reserved keyword
             if ( false !== t )
             {
                 t_index+=1;
                 AST.push( t.node(null, t_index) );
-                expr.pos += m[ 1 ].length;
+                i += m[ 0 ].length;
                 continue;
             }
-            t = xpr.t_op( m[ 2 ] ); // (literal) operator
+            t = xpr.t_op( conf, m[ 1 ] ); // (literal) operator
             if ( false !== t )
             {
                 t_index+=1;
@@ -1216,28 +1747,28 @@ Xpresion.parse = function( xpr ) {
                     errmsg = errors.msg;
                     break;
                 }
-                expr.pos += m[ 1 ].length;
+                i += m[ 0 ].length;
                 continue;
             }
             if ( t_var_is_also_ident )
             {
-                t = xpr.t_var( m[ 2 ] ); // variables are also same identifiers
+                t = xpr.t_var( conf, m[ 1 ] ); // variables are also same identifiers
                 if ( false !== t )
                 {
                     t_index+=1;
                     AST.push( t.node(null, t_index) );
-                    expr.pos += m[ 1 ].length;
+                    i += m[ 0 ].length;
                     continue;
                 }
             }
         }
-        
-        if ( m = e.match( RE.t_special ) ) // special symbols..
+
+        if ( m = e.match( conf.RE.t_special ) ) // special symbols..
         {
             v = m[ 1 ]; t = false;
             while ( v.length > 0 ) // try to match maximum length op/func
             {
-                t = xpr.t_op( v ); // function, (non-literal) operator
+                t = xpr.t_op( conf, v ); // function, (non-literal) operator
                 if ( false !== t ) break;
                 v = v.slice( 0, -1 );
             }
@@ -1251,34 +1782,34 @@ Xpresion.parse = function( xpr ) {
                     errmsg = errors.msg;
                     break;
                 }
-                expr.pos += v.length;
+                i += v.length;
                 continue;
             }
         }
-        
-        if ( !t_var_is_also_ident && (m = e.match( RE.t_var )) ) // variables
+
+        if ( !t_var_is_also_ident && (m = e.match( conf.RE.t_var )) ) // variables
         {
-            t = xpr.t_var( m[ 2 ] );
+            t = xpr.t_var( conf, m[ 1 ] );
             if ( false !== t )
             {
                 t_index+=1;
                 AST.push( t.node(null, t_index) );
-                expr.pos += m[ 1 ].length;
+                i += m[ 0 ].length;
                 continue;
             }
         }
-        
-        if ( m = e.match( RE.t_nonspc ) ) // other non-space tokens/symbols..
+
+        if ( m = e.match( conf.RE.t_nonspc ) ) // other non-space tokens/symbols..
         {
-            t = xpr.t_liter( m[ 2 ], T_LIT ); // reserved keyword
+            t = xpr.t_liter( conf, m[ 1 ], T_LIT ); // reserved keyword
             if ( false !== t )
             {
                 t_index+=1;
                 AST.push( t.node(null, t_index) );
-                expr.pos += m[ 1 ].length;
+                i += m[ 0 ].length;
                 continue;
             }
-            t = xpr.t_op( m[ 2 ] ); // function, other (non-literal) operator
+            t = xpr.t_op( conf, m[ 1 ] ); // function, other (non-literal) operator
             if ( false !== t )
             {
                 t_index+=1;
@@ -1289,192 +1820,92 @@ Xpresion.parse = function( xpr ) {
                     errmsg = errors.msg;
                     break;
                 }
-                expr.pos += m[ 1 ].length;
+                i += m[ 0 ].length;
                 continue;
             }
-            t = xpr.t_tok( m[ 2 ] );
+            t = xpr.t_tok( conf, m[ 1 ] );
             t_index+=1;
             AST.push( t.node(null, t_index) ); // pass-through ..
-            expr.pos += m[ 1 ].length;
+            i += m[ 0 ].length;
             //continue;
         }
     }
-    
-    parsed = '';
-    
+
     if ( !err )
     {
         reduce( AST, OPS, NOPS );
-        
+
         if ( (1 !== AST.length) || (OPS.length > 0) )
         {
             err = 1;
             errmsg = 'Parse Error, Mismatched Parentheses or Operators';
-            //console.log(AST);
         }
     }
-    
-    parsed = AST[0];
-    NOPS = null; OPS = null; AST = null;
-    xpr._symbol_table = null;
-    
+
     if ( !err )
     {
         try {
-            
-            evaluator = xpr.compile( parsed );
-        
+
+            evaluator = xpr.compile( AST[0], conf );
+
         } catch( e ) {
-            
+
             err = 1;
-            errmsg = 'Compilation Error, ' + e.message + ' at "' + parsed + '"';
+            errmsg = 'Compilation Error, ' + e.toString() + '';
         }
     }
-    
+
+    NOPS = null;
+    OPS = null;
+    AST = null;
+    xpr._symbol_table = null;
+
     if ( err )
     {
         evaluator = null;
         xpr.variables = [ ];
         xpr._cnt = 0;
         xpr._cache = { };
-        xpr._evaluator_str = '';
-        xpr._evaluator = xpr.dummy_evaluator;
-        console.error( 'Xpresion Error: ' + errmsg + ' at "' + expr + '"');
+        xpr.evaluatorString = '';
+        xpr.evaluator = xpr.dummy_evaluator;
+        throw new Error( 'Xpresion Error: ' + errmsg + ' at "' + expr + '"');
     }
     else
     {
         // make array
         xpr.variables = Keys( xpr.variables );
-        xpr._evaluator_str = evaluator[0];
-        xpr._evaluator = evaluator[1];
+        xpr.evaluatorString = evaluator[0];
+        xpr.evaluator = evaluator[1];
     }
-    
-    return xpr; 
+
+    return xpr;
 };
-    
-Xpresion.render = function( tok, args ) { 
-    return tok.render( args ); 
+
+Xpresion.render = function( tok, args ) {
+    return tok.render( args );
     //return Tok.render(tok, args);
 };
 
-/*Xpresion.evaluate = function( tok, args ) { 
-    return tok.evaluate( args ); 
-};*/
-
-Xpresion.defRE = function( obj, RE ) {
-    if ( 'object' === typeof obj )
+Xpresion.GET = function( obj, keys ) {
+    if ( !keys || !keys.length ) return obj;
+    var i = 0, l = keys.length, o = obj, k;
+    while( i < l )
     {
-        RE = RE || Xpresion.RE;
-        for (var k in obj)
+        k = keys[i++];
+        if ( !o )
         {
-            if ( obj[HAS](k) ) RE[ k ] = obj[ k ];
+            break;
+        }
+        if ( null != o[k] )
+        {
+            o = o[k];
+        }
+        else
+        {
+            break;
         }
     }
-    return RE;
-};
-
-Xpresion.defBlock = function( obj, BLOCK ) {
-    if ( 'object' === typeof obj )
-    {
-        BLOCK = BLOCK || Xpresion[BLOCKS];
-        for (var k in obj)
-        {
-            if ( obj[HAS](k) ) BLOCK[ k ] = obj[ k ];
-        }
-    }
-    return BLOCK;
-};
-
-Xpresion.defReserved = function( obj, Reserved ) {
-    if ( 'object' === typeof obj )
-    {
-        Reserved = Reserved || Xpresion.Reserved;
-        for (var k in obj)
-        {
-            if ( obj[HAS](k) ) Reserved[ k ] = obj[ k ];
-        }
-    }
-    return Reserved;
-};
-
-Xpresion.defOp = function( obj, OPERATORS ) {
-    if ( 'object' === typeof obj )
-    {
-        OPERATORS = OPERATORS || Xpresion[OPS];
-        var k, op;
-        for (k in obj)
-        {
-            if ( !obj[HAS](k) || !obj[ k ] ) continue;
-            op = obj[ k ];
-            
-            if ( op instanceof Alias || op instanceof Op )
-            {
-                OPERATORS[ k ] = op;
-                continue;
-            }
-            
-            if ( op.polymorphic )
-            {
-            }
-            else
-            {
-                OPERATORS[ k ] = new Op(
-                    // input, output,  fixity,   associativity,   priority, /*arity,*/ otype, ofixity
-                    op.input,
-                    op.output,
-                    op.fixity,
-                    op.associativity,
-                    op.priority,
-                    op.otype,
-                    op.ofixity
-                );
-            }
-        }
-    }
-    return OPERATORS;
-};
-
-Xpresion.defFunc = function( obj, FUNCTIONS ) {
-    if ( 'object' === typeof obj )
-    {
-        FUNCTIONS = FUNCTIONS || Xpresion[FUNCS];
-        var k, op;
-        for (k in obj)
-        {
-            if ( !obj[HAS](k) || !obj[ k ] ) continue;
-            op = obj[ k ];
-            
-            if ( op instanceof Alias || op instanceof Func )
-            {
-                FUNCTIONS[ k ] = op;
-                continue;
-            }
-            
-            FUNCTIONS[ k ] = new Func(
-                // input, output, otype, priority, arity, associativity, fixity
-                op.input,
-                op.output,
-                op.otype,
-                op.priority,
-                op.arity,
-                op.associativity,
-                op.fixity
-            );
-        }
-    }
-    return FUNCTIONS;
-};
-
-Xpresion.defRuntimeFunc = function( obj, Fn ) {
-    if ( 'object' === typeof obj )
-    {
-        Fn = Fn || Xpresion.Fn;
-        for (var k in obj)
-        {
-            if ( obj[HAS](k) ) Fn[ k ] = obj[ k ];
-        }
-    }
-    return Fn;
+    return i===l ? o : null;
 };
 
 function Tok( type, input, output, value )
@@ -1496,10 +1927,10 @@ function Tok( type, input, output, value )
     self.revert = false;
 }
 Xpresion.Tok = Tok;
-Tok.render = function( t, args ) { return (t instanceof Tok) ? t.render(args) : String(t); };
+Tok.render = function( t, args ) { return (t instanceof Tok) ? t.render(args||[]) : String(t); };
 Tok[PROTO] = {
     constructor: Tok
-    
+
     ,type: null
     ,input: null
     ,output: null
@@ -1513,7 +1944,7 @@ Tok[PROTO] = {
     ,fixity: INFIX
     ,parenthesize: false
     ,revert: false
-    
+
     ,dispose: function( ) {
         var self = this;
         self.type = null;
@@ -1545,7 +1976,7 @@ Tok[PROTO] = {
     }
     ,render: function( args ) {
         var self = this,
-            token = self.output, 
+            token = self.output,
             p = self.parenthesize,
             lparen = p ? Xpresion.LPAREN : '',
             rparen = p ? Xpresion.RPAREN : '',
@@ -1553,16 +1984,12 @@ Tok[PROTO] = {
         ;
         if (!args) args = [];
         args.unshift(self.input);
-        if ( token instanceof GrammarTemplate ) out = token.render( args );
+        if ( token instanceof GrammarTemplate ) out = token.render( {'$':args} );
         else                                    out = String(token);
         return lparen + out + rparen;
     }
-    ,evaluate: function( args ) {
-        // todo
-        return null;
-    }
     ,node: function( args, pos ) {
-        return Node(this.type, this.arity, this, !!args ? args : null, pos)
+        return Node(this.type, this.arity, this, !!args ? args : null, pos||0)
     }
     ,toString: function( ) {
         return String(this.output);
@@ -1570,22 +1997,23 @@ Tok[PROTO] = {
 };
 EMPTY_TOKEN = Xpresion.EMPTY_TOKEN = Tok(T_EMPTY, '', '');
 
-function Op( input, output, fixity, associativity, priority, /*arity,*/ otype, ofixity )
+function Op( input, output, otype, fixity, associativity, priority, /*arity,*/ ofixity )
 {
     var self = this;
-    if ( !(self instanceof Op) ) 
-        return new Op(input, output, fixity, associativity, priority, /*arity,*/ otype, ofixity);
-    
-    input = input || ''; output = output || '';
+    if ( !(self instanceof Op) )
+        return new Op(input, output, otype, fixity, associativity, priority, /*arity,*/ ofixity);
+
+    input = null==input ? '' : input;
+    output = null==output ? '' : output;
     var opdef = Op.parse_definition( input );
     self.type = opdef[0];
     self.opdef = opdef[1];
     self.parts = opdef[2];
-    
-    if ( output && !(output instanceof GrammarTemplate) ) output = new GrammarTemplate(output);
-    
+
+    if ( !(output instanceof GrammarTemplate) ) output = new GrammarTemplate(String(output));
+
     Tok.call(self, self.type, self.parts[0], output);
-    
+
     self.fixity = null != fixity ? fixity : PREFIX;
     self.associativity = null != associativity ? associativity : DEFAULT;
     self.priority = null != priority ? priority : 1000;
@@ -1593,7 +2021,7 @@ function Op( input, output, fixity, associativity, priority, /*arity,*/ otype, o
     self.arity_min = opdef[4];
     self.arity_max = opdef[5];
     //self.arity = arity || 0;
-    self.otype = null != otype ? otype : T_DFT;
+    self.otype = null != otype ? otype : T_MIX;
     self.ofixity = null != ofixity ? ofixity : self.fixity;
     self.parenthesize = false;
     self.revert = false;
@@ -1601,15 +2029,22 @@ function Op( input, output, fixity, associativity, priority, /*arity,*/ otype, o
 }
 Xpresion.Op = Op;
 Op.Condition = function( f ) {
-    return ['function'===typeof f[0] 
-    ? f[0] 
-    : Tpl.compile(Tpl.multisplit(f[0],{'${POSITION}':0,'${TOKENS}':1,'${OPERATORS}':2,'${TOKEN}':3,'${OPERATOR}':4,'${OPERATOR_PRECEDING}':5,'${DEDUCED_TYPE}':6,'Xpresion':7}), true),
-    f[1]
+    if ( is_string(f[0]) )
+    {
+        try {
+            f[0] = F('curr,Xpresion', 'return '+f[0]+';');
+        } catch(ex) {
+            f[0] = null;
+        }
+    }
+    return [
+        'function'===typeof f[0] ? f[0] : null,
+        f[1]
     ];
 };
 Op.parse_definition = function( op_def ) {
     var parts = [], op = [], num_args,
-        arity = 0, arity_min = 0, arity_max = 0, type, i;
+        arity = 0, arity_min = 0, arity_max = 0, type, i, l;
     if ( is_string(op_def) )
     {
         // assume infix, arity = 2;
@@ -1619,7 +2054,7 @@ Op.parse_definition = function( op_def ) {
     {
         op_def = [].concat(op_def);
     }
-    for (i=0; i<op_def.length; i++)
+    for (i=0,l=op_def.length; i<l; i++)
     {
         if ( is_string( op_def[i] ) )
         {
@@ -1648,22 +2083,14 @@ Op.parse_definition = function( op_def ) {
 };
 Op.match_args = function( expected_args, args_pos, op_queue, token_queue ) {
     var tl = token_queue.length,
-        //ol = op_queue.length,
-        t = tl-1, /*o = 0,*/ num_args = 0,
+        t = tl-1, num_args = 0,
         num_expected_args = abs(expected_args),
-        /*p1,*/ p2, INF = -10
+        p2, INF = -10
     ;
     while (num_args < num_expected_args || t >= 0 /*|| o < ol*/ )
     {
-        //p1 = o < ol ? op_queue[o].pos : INF;
         p2 = t >= 0 ? token_queue[t].pos : INF;
-        /*if ( args_pos === p1 ) 
-        {
-            num_args++;
-            args_pos--;
-            o++;
-        }
-        else*/ if ( args_pos === p2 ) 
+        if ( args_pos === p2 )
         {
             num_args++;
             args_pos--;
@@ -1696,22 +2123,34 @@ Op[PROTO].Polymorphic = function(morphes) {
     return self;
 };
 Op[PROTO].morph = function( args ) {
-    var morphes = this.morphes, l = morphes.length, i = 0, 
-        op, minop = morphes[0][1], found = false;
-    
-    if (args.length < 8)
+    var morphes = this.morphes, l = morphes.length, i = 0,
+        op, minop = morphes[0][1], found = false, matched, nargs;
+
+    // [pos,token_queue,op_queue]
+    if (args.length < 7)
     {
         args.push(args[1].length ? args[1][args[1].length-1] : false);
         args.push(args[2].length ? args[2][0] : false);
         args.push(args[4] ? (args[4].pos+1===args[0]) : false);
         args.push(args[4] ? args[4].type : (args[3] ? args[3].type : 0));
-        args.push(Xpresion);
+        //args.push(Xpresion);
     }
-    
+    // array('${POS}'=>0,'${TOKS}'=>1,'${OPS}'=>2,'${TOK}'=>3,'${OP}'=>4,'${PREV_IS_OP}'=>5,'${DEDUCED_TYPE}'=>6)
+    nargs = {
+        POS: args[0],
+        TOKS: args[1],
+        OPS: args[2],
+        TOK: args[3],
+        OP: args[4],
+        PREV_IS_OP: args[5],
+        DEDUCED_TYPE: args[6]
+    };
+
     while ( i < l )
     {
         op = morphes[i++];
-        if ( true === Boolean(op[0]( args )) ) 
+        matched = Boolean(op[0]( nargs, Xpresion ));
+        if ( true === matched )
         {
             op = op[1];
             found = true;
@@ -1729,21 +2168,21 @@ Op[PROTO].render = function( args ) {
     if (!args || !args.length) args = ['',''];
     var self = this, i,
         output_type = self.otype,
-        op = self.output, 
+        op = self.output,
         p = self.parenthesize,
-        lparen = p ? Xpresion.LPAREN : '', 
+        lparen = p ? Xpresion.LPAREN : '',
         rparen = p ? Xpresion.RPAREN : '',
         comma = Xpresion.COMMA,
-        out_fixity = self.ofixity, 
+        out_fixity = self.ofixity,
         numargs = args.length, out
     ;
-    //if ( (T_DUM === output_type) && numargs ) 
+    //if ( (T_DUM === output_type) && numargs )
     //    output_type = args[ 0 ].type;
-    
+
     //args = args.map( Tok.render );
-    
+
     if ( op instanceof GrammarTemplate )
-        out = lparen + op.render( args ) + rparen;
+        out = lparen + op.render( {'$':args} ) + rparen;
     else if ( INFIX === out_fixity )
         out = lparen + args.join(op) + rparen;
     else if ( POSTFIX === out_fixity )
@@ -1753,7 +2192,7 @@ Op[PROTO].render = function( args ) {
     return Tok(output_type, out, out);
 };
 Op[PROTO].validate = function( pos, op_queue, token_queue ) {
-    var self = this, opdef = self.opdef, 
+    var self = this, opdef = self.opdef,
         msg = '', num_args = 0;
     if ( 0 === opdef[0][0] ) // expecting argument(s)
     {
@@ -1763,8 +2202,9 @@ Op[PROTO].validate = function( pos, op_queue, token_queue ) {
     }
     return [num_args, msg];
 };
-Op[PROTO].node = function( args, pos ) {
+Op[PROTO].node = function( args, pos, op_queue, token_queue ) {
     args = args || [];
+    pos = pos || 0;
     var self = this, otype = self.otype, n;
     if ( self.revert ) args.reverse( );
     if ( (T_DUM === otype) && args.length ) otype = args[ 0 ].type;
@@ -1779,11 +2219,21 @@ Op[PROTO].node = function( args, pos ) {
     return n;
 };
 
-function Func( input, output, otype, priority, arity, associativity, fixity )
+function Func( input, output, otype, priority, arity, associativity, ofixity )
 {
     var self = this;
-    if ( !(self instanceof Func) ) return new Func(input, output, otype, priority, arity, associativity, fixity);
-    Op.call(self, is_string(input) ? [input, null!=arity?arity:1] : input, output, PREFIX, null!=associativity?associativity:RIGHT, null!=priority?priority:1, /*1,*/ otype, null!=fixity?fixity:PREFIX);
+    if ( !(self instanceof Func) ) return new Func(input, output, otype, priority, arity, associativity, ofixity);
+    input = null==input ? '' : input;
+    output = null==output ? '' : output;
+    Op.call(self,
+        is_string(input) ? [input, null!=arity ? arity : 1] : input,
+        output,
+        null!=otype ? otype : T_MIX,
+        PREFIX,
+        null!=associativity ? associativity : RIGHT,
+        null!=priority ? priority : 1,
+        null!=ofixity ? ofixity : PREFIX
+    );
     self.type = T_FUN;
 }
 Xpresion.Func = Func;
@@ -1792,84 +2242,50 @@ Func[PROTO] = Extend( Op[PROTO] );
 // Methods
 Xpresion[PROTO] = {
     constructor: Xpresion
-    
+
     ,source: null
     ,variables: null
-    
-    ,RE: null
-    ,Reserved: null
-    ,BLOCKS: null
-    ,OPERATORS: null
-    ,FUNCTIONS: null
-    ,Fn: null
-    
+    ,evaluatorString: null
+    ,evaluator: null
+
     ,_cnt: 0
     ,_cache: null
     ,_symbol_table: null
-    ,_evaluator_str: null
-    ,_evaluator: null
     ,dummy_evaluator: null
-    
+
     ,dispose: function( ) {
         var self = this;
-        self.RE = null;
-        self.Reserved = null;
-        self[BLOCKS] = null;
-        self[OPS] = null;
-        self[FUNCS] = null;
-        self.Fn = null;
         self.dummy_evaluator = null;
-        
+
         self.source = null;
         self.variables = null;
-        
+        self.evaluatorString = null;
+        self.evaluator = null;
+
         self._cnt = null;
         self._symbol_table = null;
         self._cache = null;
-        self._evaluator_str = null;
-        self._evaluator = null;
-        
+
         return self;
     }
-    
-    ,setup: function( ) {
-        var self = this;
-        self.RE = Xpresion.RE;
-        self.Reserved = Xpresion.Reserved;
-        self[BLOCKS] = Xpresion[BLOCKS];
-        self[OPS] = Xpresion[OPS];
-        self[FUNCS] = Xpresion[FUNCS];
-        self.Fn = Xpresion.Fn;
-        self.dummy_evaluator = dummy;
-        return self;
-    }
-    
-    ,compile: function( AST ) {
+
+    ,compile: function( AST, conf ) {
         // depth-first traversal and rendering of Abstract Syntax Tree (AST)
         var evaluator_str = Node.DFT( AST, Xpresion.render, true );
-        return [evaluator_str, evaluator_factory(evaluator_str,this.Fn,this._cache)];
+        return [evaluator_str, evaluator_factory(evaluator_str,conf.FN,this._cache)];
     }
-    
-    ,evaluator: function( evaluator ) {
-        if ( arguments.length )
-        {
-            if ( evaluator && evaluator.call ) this._evaluator = evaluator;
-            return this;
-        }
-        return this._evaluator;
-    }
-    
+
     ,evaluate: function( data ) {
         if ( 1 > arguments.length ) data = {};
-        return this._evaluator( data );
+        return 'function' === typeof this.evaluator ? this.evaluator( data ) : null;
     }
-    
+
     ,debug: function( data ) {
         var self = this;
         var out = [
             'Expression: ' + self.source,
             'Variables : [' + self.variables.join(',') + ']',
-            'Evaluator : ' + self._evaluator_str
+            'Evaluator : ' + self.evaluatorString
         ];
         if ( arguments.length )
         {
@@ -1878,26 +2294,26 @@ Xpresion[PROTO] = {
         }
         return out.join("\n");
     }
-    
+
     ,toString: function( ) {
-        return '[Xpresion source]: ' + this.source + '';
+        return '[Xpresion source]: ' + String(this.source) + '';
     }
-    
-    ,t_liter: function( token, type ) { 
-        if ( T_NUM === type ) return Tok(T_NUM, token, token); 
-        return Alias.get_entry(this.Reserved, token.toLowerCase( ));
+
+    ,t_liter: function( conf, token, type ) {
+        if ( T_NUM === type ) return Tok(T_NUM, token, token);
+        return Alias.get_entry(conf.RESERVED, token.toLowerCase( ));
     }
-    
-    ,t_block: function( token, type, postfix ) { 
+
+    ,t_block: function( conf, token, type, rest ) {
+        rest = rest || '';
         if ( T_STR === type )
         {
-            return Tok(T_STR, token, token); 
+            return Tok(T_STR, token, token);
         }
         else if ( T_REX === type )
         {
-            postfix = postfix || '';
-            var sid = 're_'+token+postfix, id, rs;
-            if ( this._symbol_table[HAS](sid) ) 
+            var sid = 're_'+token+rest, id, rs;
+            if ( hasOwnProperty.call(this._symbol_table,sid) )
             {
                 id = this._symbol_table[sid];
             }
@@ -1905,342 +2321,526 @@ Xpresion[PROTO] = {
             {
                 id = 're_' + (++this._cnt);
                 rs = token.slice(1,-1);//.replace(/\\/g, '\\\\')
-                this._cache[ id ] = RE(rs, postfix);
+                this._cache[ id ] = RE(rs, rest);
                 this._symbol_table[sid] = id;
             }
             return Tok(T_REX, token, 'Cache.'+id+'');
         }
-        /*else if ( T_DTM === type )
-        {
-            rest = (rest || '').slice(1,-1);
-            var sid = 'dt_'+token+rest, id, rs;
-            if ( this._symbol_table[HAS](sid) ) 
-            {
-                id = this._symbol_table[sid];
-            }
-            else
-            {
-                id = 'dt_' + (++this._cnt);
-                rs = token.slice(1,-1);
-                this._cache[ id ] = DATE(rs, rest);
-                this._symbol_table[sid] = id;
-            }
-            return Tok(T_DTM, token, 'Cache.'+id+'');
-        }*/
         return false;
     }
-    
-    ,t_var: function( token ) {
-        if ( !this.variables[HAS]( token ) ) this.variables[ token ] = token;
-        return Tok(T_VAR, token, 'Var["' + token.split('.').join('"]["') + '"]');
+
+    ,t_var: function( conf, token ) {
+        var parts = token.split('.'), main = parts[0], keys;
+        if ( !hasOwnProperty.call(this.variables, main ) ) this.variables[ main ] = main;
+        if ( 1 < parts.length )
+        {
+            keys = '["' + parts.slice(1).join('","') + '"]';
+            return Tok(T_VAR, main, 'Xpresion.GET(Var["' + main + '"],'+keys+')');
+        }
+        else
+        {
+            return Tok(T_VAR, main, 'Var["' + main + '"]');
+        }
+        //return Tok(T_VAR, token, 'Var["' + token.split('.').join('"]["') + '"]');
     }
-    
-    ,t_op: function( token ) { 
+
+    ,t_op: function( conf, token ) {
         var op = false;
-        op = Alias.get_entry(this[FUNCS], token);
-        if ( false === op ) op = Alias.get_entry(this[OPS], token);
+        op = Alias.get_entry(conf.FUNCTIONS, token);
+        if ( false === op ) op = Alias.get_entry(conf.OPERATORS, token);
         return op;
     }
-    
-    ,t_tok: function( token ) { return Tok(T_DFT, token, token); }
+
+    ,t_tok: function( conf, token ) { return Tok(T_MIX, token, token); }
 };
 
-Xpresion.init = function( andConfigure ) {
-if ( __inited ) return;
-Xpresion[OPS] = {};
-Xpresion[FUNCS] = {};
-Xpresion.Fn = {};
-Xpresion.RE = {};
-Xpresion[BLOCKS] = {};
-Xpresion.Reserved = {};
-Xpresion.defRuntimeFunc({
- 'INF'          : Infinity
-,'NAN'          : NaN
-,'clamp'        : function( v, m, M ) { 
-                    if ( m > M ) return v > m ? m : (v < M ? M : v); 
-                    else return v > M ? M : (v < m ? m : v); 
+Xpresion.init = function( ) {
+    if ( __inited ) return;
+
+    __inited = true;
+
+    // e.g https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
+    Xpresion.defaultConfiguration(Configuration({
+    // regular expressions for tokens
+    // ===============================
+    're' : {
+     't_spc'        :  /^(\s+)/
+    ,'t_nonspc'     :  /^(\S+)/
+    ,'t_special'    :  /^([*.\\\-+\/\^\$\(\)\[\]|?<:>&~%!#@=_,;{}]+)/
+    ,'t_num'        :  /^(\d+(\.\d+)?)/
+    ,'t_ident'      :  /^([a-zA-Z_][a-zA-Z0-9_]*)\b/
+    ,'t_var'        :  /^\$([a-zA-Z0-9_][a-zA-Z0-9_.]*)\b/
+    }
+
+    // block-type tokens (eg strings and regexes)
+    // ==========================================
+    ,'blocks' : {
+     '\'': {
+        'type': T_STR,
+        'parse': Xpresion.parse_delimited_block
+     }
+    ,'"': Alias('\'')
+    ,'`': {
+        'type': T_REX,
+        'parse': Xpresion.parse_delimited_block,
+        'rest': parse_re_flags
+    }
+    }
+
+    // reserved keywords and literals
+    // ===============================
+    ,'reserved' : {
+     'null'     : Tok(T_IDE, 'null', 'null')
+    ,'false'    : Tok(T_BOL, 'false', 'false')
+    ,'true'     : Tok(T_BOL, 'true', 'true')
+    ,'infinity' : Tok(T_NUM, 'Infinity', 'Infinity')
+    ,'nan'      : Tok(T_NUM, 'NaN', 'NaN')
+    // aliases
+    ,'none'     : Alias('null')
+    ,'inf'      : Alias('infinity')
+    }
+
+    // operators
+    // ==========
+    ,'operators' : {
+    // bra-kets as n-ary operators
+    // negative number of arguments, indicate optional arguments (experimental)
+     '('    :   {
+                    'input'         : ['(',-1,')']
+                    ,'output'       : '<$.0>'
+                    ,'otype'        : T_DUM
+                    ,'fixity'       : POSTFIX
+                    ,'associativity': RIGHT
+                    ,'priority'     : 0
                 }
-,'len'          : function( v ) { 
-                    if ( v )
-                    {
-                        if ( v.substr || v.push ) return v.length;
-                        if ( Object === v.constructor ) return Keys(v).length;
-                        return 1;
+    ,')'    :   {'input':[-1,')']}
+    ,'['    :   {
+                    'input'         : ['[',-1,']']
+                    ,'output'       : '\\[<$.0>\\]'
+                    ,'otype'        : T_ARY
+                    ,'fixity'       : POSTFIX
+                    ,'associativity': RIGHT
+                    ,'priority'     : 2
+                }
+    ,']'    :   {'input':[-1,']']}
+    ,','    :   {
+                    'input'         : [1,',',1]
+                    ,'output'       : '<$.0>,<$.1>'
+                    ,'otype'        : T_DFT
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 3
+                }
+    // n-ary (ternary) if-then-else operator
+    ,'?'    :   {
+                    'input'         : [1,'?',1,':',1]
+                    ,'output'       : '(<$.0>?<$.1>:<$.2>)'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : INFIX
+                    ,'associativity': RIGHT
+                    ,'priority'     : 100
+                }
+    ,':'    :   {'input':[1,':',1]}
+
+    ,'!'    :   {
+                    'input'         : ['!',1]
+                    ,'output'       : '!<$.0>'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : PREFIX
+                    ,'associativity': RIGHT
+                    ,'priority'     : 10
+                }
+    ,'~'    :   {
+                    'input'         : ['~',1]
+                    ,'output'       : '~<$.0>'
+                    ,'otype'        : T_NUM
+                    ,'fixity'       : PREFIX
+                    ,'associativity': RIGHT
+                    ,'priority'     : 10
+                }
+    ,'^'    :   {
+                    'input'         : [1,'^',1]
+                    ,'output'       : 'Math.pow(<$.0>,<$.1>)'
+                    ,'otype'        : T_NUM
+                    ,'fixity'       : INFIX
+                    ,'associativity': RIGHT
+                    ,'priority'     : 11
+                }
+    ,'*'    :   {
+                    'input'         : [1,'*',1]
+                    ,'output'       : '(<$.0>*<$.1>)'
+                    ,'otype'        : T_NUM
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 20
+                }
+    ,'/'    :   {
+                    'input'         : [1,'/',1]
+                    ,'output'       : '(<$.0>/<$.1>)'
+                    ,'otype'        : T_NUM
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 20
+                }
+    ,'%'    :   {
+                    'input'         : [1,'%',1]
+                    ,'output'       : '(<$.0>%<$.1>)'
+                    ,'otype'        : T_NUM
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 20
+                }
+    // addition/concatenation/unary plus as polymorphic operators
+    ,'+'    :   {'polymorphic':[
+                // array concatenation
+                [
+                function(curr,Xpresion){return curr.TOK && (!curr.PREV_IS_OP) && (curr.DEDUCED_TYPE===Xpresion.T_ARY);},
+                {
+                    'input'         : [1,'+',1]
+                    ,'output'       : 'Fn.ary_merge(<$.0>,<$.1>)'
+                    ,'otype'        : T_ARY
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 25
+                }
+                ]
+                // string concatenation
+                ,[
+                function(curr,Xpresion){return curr.TOK && (!curr.PREV_IS_OP) && (curr.DEDUCED_TYPE===Xpresion.T_STR);},
+                {
+                    'input'         : [1,'+',1]
+                    ,'output'       : '(<$.0>+String(<$.1>))'
+                    ,'otype'        : T_STR
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 25
+                }
+                ]
+                // numeric addition
+                ,[
+                function(curr,Xpresion){return curr.TOK && !curr.PREV_IS_OP;},
+                {
+                    'input'         : [1,'+',1]
+                    ,'output'       : '(<$.0>+<$.1>)'
+                    ,'otype'        : T_NUM
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 25
+                }
+                ]
+                // unary plus
+                ,[
+                function(curr,Xpresion){return (!curr.TOK) || curr.PREV_IS_OP;},
+                {
+                    'input'         : ['+',1]
+                    ,'output'       : '<$.0>'
+                    ,'otype'        : T_NUM
+                    ,'fixity'       : PREFIX
+                    ,'associativity': RIGHT
+                    ,'priority'     : 4
+                }
+                ]
+                ]}
+    ,'-'    :   {'polymorphic':[
+                // numeric subtraction
+                [
+                function(curr,Xpresion){return curr.TOK && !curr.PREV_IS_OP;},
+                {
+                    'input'         : [1,'-',1]
+                    ,'output'       : '(<$.0>-<$.1>)'
+                    ,'otype'        : T_NUM
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 25
+                }
+                ]
+                // unary negation
+                ,[
+                function(curr,Xpresion){return (!curr.TOK) || curr.PREV_IS_OP;},
+                {
+                    'input'         : ['-',1]
+                    ,'output'       : '(-<$.0>)'
+                    ,'otype'        : T_NUM
+                    ,'fixity'       : PREFIX
+                    ,'associativity': RIGHT
+                    ,'priority'     : 4
+                }
+                ]
+                ]}
+    ,'>>'   :   {
+                    'input'         : [1,'>>',1]
+                    ,'output'       : '(<$.0>\\>\\><$.1>)'
+                    ,'otype'        : T_NUM
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 30
+                }
+    ,'<<'   :   {
+                    'input'         : [1,'<<',1]
+                    ,'output'       : '(<$.0>\\<\\<<$.1>)'
+                    ,'otype'        : T_NUM
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 30
+                }
+    ,'>'    :   {
+                    'input'         : [1,'>',1]
+                    ,'output'       : '(<$.0>\\><$.1>)'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 35
+                }
+    ,'<'    :   {
+                    'input'         : [1,'<',1]
+                    ,'output'       : '(<$.0>\\<<$.1>)'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 35
+                }
+    ,'>='   :   {
+                    'input'         : [1,'>=',1]
+                    ,'output'       : '(<$.0>\\>=<$.1>)'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 35
+                }
+    ,'<='   :   {
+                    'input'         : [1,'<=',1]
+                    ,'output'       : '(<$.0>\\<=<$.1>)'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 35
+                }
+    ,'=='   :   {'polymorphic':[
+                // array equivalence
+                [
+                function(curr,Xpresion){return curr.DEDUCED_TYPE===Xpresion.T_ARY;},
+                {
+                    'input'         : [1,'==',1]
+                    ,'output'       : 'Fn.ary_eq(<$.0>,<$.1>)'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 40
+                }
+                ]
+                // default equivalence
+                ,[
+                function(curr,Xpresion){return true;},
+                {
+                    'input'         : [1,'==',1]
+                    ,'output'       : '(<$.0>==<$.1>)'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 40
+                }
+                ]
+                ]}
+    ,'!='   :   {
+                    'input'         : [1,'!=',1]
+                    ,'output'       : '(<$.0>!=<$.1>)'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 40
+                }
+    ,'is'   :   {
+                    'input'         : [1,'is',1]
+                    ,'output'       : '(<$.0>===<$.1>)'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 40
+                }
+    ,'matches': {
+                    'input'         : [1,'matches',1]
+                    ,'output'       : 'Fn.match(<$.1>,<$.0>)'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : INFIX
+                    ,'associativity': NONE
+                    ,'priority'     : 40
+                }
+    ,'in'   :   {
+                    'input'         : [1,'in',1]
+                    ,'output'       : 'Fn.contains(<$.1>,<$.0>)'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : INFIX
+                    ,'associativity': NONE
+                    ,'priority'     : 40
+                }
+    ,'&'    :   {
+                    'input'         : [1,'&',1]
+                    ,'output'       : '(<$.0>&<$.1>)'
+                    ,'otype'        : T_NUM
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 45
+                }
+    ,'|'    :   {
+                    'input'         : [1,'|',1]
+                    ,'output'       : '(<$.0>|<$.1>)'
+                    ,'otype'        : T_NUM
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 46
+                }
+    ,'&&'   :   {
+                    'input'         : [1,'&&',1]
+                    ,'output'       : '(<$.0>&&<$.1>)'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 47
+                }
+    ,'||'   :   {
+                    'input'         : [1,'||',1]
+                    ,'output'       : '(<$.0>||<$.1>)'
+                    ,'otype'        : T_BOL
+                    ,'fixity'       : INFIX
+                    ,'associativity': LEFT
+                    ,'priority'     : 48
+                }
+    //------------------------------------------
+    //                aliases
+    //-------------------------------------------
+    ,'or'    :  Alias( '||' )
+    ,'and'   :  Alias( '&&' )
+    ,'not'   :  Alias( '!' )
+    }
+
+    // functional operators
+    // ====================
+    ,'functions' : {
+     'min'      : {
+                    'input'     : 'min'
+                    ,'output'   : 'Math.min(<$.0>)'
+                    ,'otype'    : T_NUM
+                }
+    ,'max'      : {
+                    'input'     : 'max'
+                    ,'output'   : 'Math.max(<$.0>)'
+                    ,'otype'    : T_NUM
+                }
+    ,'pow'      : {
+                    'input'     : 'pow'
+                    ,'output'   : 'Math.pow(<$.0>)'
+                    ,'otype'    : T_NUM
+                }
+    ,'sqrt'     : {
+                    'input'     : 'sqrt'
+                    ,'output'   : 'Math.sqrt(<$.0>)'
+                    ,'otype'    : T_NUM
+                }
+    ,'len'      : {
+                    'input'     : 'len'
+                    ,'output'   : 'Fn.len(<$.0>)'
+                    ,'otype'    : T_NUM
+                }
+    ,'int'      : {
+                    'input'     : 'int'
+                    ,'output'   : 'parseInt(<$.0>)'
+                    ,'otype'    : T_NUM
+                }
+    ,'str'      : {
+                    'input'     : 'str'
+                    ,'output'   : 'String(<$.0>)'
+                    ,'otype'    : T_STR
+                }
+    ,'clamp'    : {
+                    'input'     : 'clamp'
+                    ,'output'   : 'Fn.clamp(<$.0>)'
+                    ,'otype'    : T_NUM
+                }
+    ,'sum'      : {
+                    'input'     : 'sum'
+                    ,'output'   : 'Fn.sum(<$.0>)'
+                    ,'otype'    : T_NUM
+                }
+    ,'avg'      : {
+                    'input'     : 'avg'
+                    ,'output'   : 'Fn.avg(<$.0>)'
+                    ,'otype'    : T_NUM
+                }
+    ,'time'     : {
+                    'input'     : 'avg'
+                    ,'output'   : 'Fn.time()'
+                    ,'otype'    : T_NUM
+                    ,'arity'    : 0
+                }
+    ,'date'     : {
+                    'input'     : 'date'
+                    ,'output'   : 'Fn.date(<$.0>)'
+                    ,'otype'    : T_STR
+                }
+    //---------------------------------------
+    //                aliases
+    //----------------------------------------
+     // ...
+    }
+
+    // runtime (implementation) functions
+    // ==================================
+    ,'runtime' : {
+    'clamp'        : function( v, m, M ) {
+                        if ( m > M ) return v > m ? m : (v < M ? M : v);
+                        else return v > M ? M : (v < m ? m : v);
                     }
-                    return 0;
-                }
-,'sum'          : function( ) {
-                    var args = arguments, i, l, s = 0;
-                    if (args[0] && Array === args[0].constructor ) args = args[0];
-                    l = args.length;
-                    if ( l > 0 ) { for(i=0; i<l; i++) s += args[i]; }
-                    return s;
-                }
-,'avg'          : function( ) {
-                    var args = arguments, i, l, s = 0;
-                    if (args[0] && Array === args[0].constructor ) args = args[0];
-                    l = args.length;
-                    if ( l > 0 ) { for(i=0; i<l; i++) s += args[i]; s = s/l;}
-                    return s;
-                }
-,'range'        : range
-,'ary_range'    : range
-,'ary_eq'       : function( a1, a2 ) {
-                    var l = a1.length, i;
-                    if ( l===a2.length )
-                    {
-                        for (i=0; i<l; i++) 
-                            if ( a1[i]!=a2[i] ) return false;
+    ,'len'          : function( v ) {
+                        if ( v )
+                        {
+                            if ( is_array(v) || is_string(v) ) return v.length;
+                            if ( is_object(v) ) return Keys(v).length;
+                            return 1;
+                        }
+                        return 0;
                     }
-                    else return false;
-                    return true;
-                }
-,'ary_merge'    : function(a1, a2) {
-                    return [ ].concat( a1, a2 );
-                }
-,'match'        : function( str, regex ) {
-                    return regex.test( str );
-                }
-,'contains'     : function( o, i ) {
-                    return o.substr||o.pop ? -1 < o.indexOf( i ) : o[HAS]( i );
-                }
-,'time'         : time
-,'date'         : date
-});
-__inited = true;
-if ( true === andConfigure ) Xpresion.defaultConfiguration( );
-};
-
-Xpresion.defaultConfiguration = function( ) {
-if ( __configured ) return;
-
-Xpresion.defOp({
-// e.g https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Operator_Precedence
-            // bra-kets as n-ary operators
- '('    :   { input         : '(<$.0|>)',
-              output        : '<$.0|()>',
-              fixity        : Xpresion.POSTFIX,
-              associativity : Xpresion.RIGHT,
-              priority      : 0,
-              otype         : Xpresion.T_DUM }
-,')'    :   { input         : '<$.0|>)' }
-,'['    :   Op().Polymorphic([
-            // array range
-            ["${TOKEN} && !${OPERATOR_PRECEDING}", Op(
-            [1,'[',1,':',1,':',-1,']'] ,INFIX ,RIGHT   ,100       ,'Fn.range($0,$1|(0),$2|(undefined),$3|(1))' ,T_ARY 
-            )]
-            // literal array
-            ,["!${TOKEN} || ${OPERATOR_PRECEDING}", Op(
-            ['[',-1,']']     ,POSTFIX    ,RIGHT          ,2          ,'[$0|()]'     ,T_ARY 
-            )]
-            ])
-,']'    :   { input         : '<$.0|>\\]' }
-,','    :   { input         : '<$.0>,<$.1>',
-              output        : '<$.0>,<$.1>',
-              fixity        : Xpresion.INFIX,
-              associativity : Xpresion.LEFT,
-              priority      : 3,
-              otype         : Xpresion.T_DFT }
-            // n-ary (ternary) if-then-else operator
-,'?'    :   { input         : '<$.0>?<$.1>:<$.2>',
-              output        : '(<$.0>?<$.1>:<$.2>)',
-              fixity        : Xpresion.INFIX,
-              associativity : Xpresion.RIGHT,
-              priority      : 100,
-              otype         : Xpresion.T_BOL } 
-,':'    :   { input         : '<$.0|>:<$.1|>',
-              output        : '<$.0|>:<$.1|>' }
-
-,'!'    :   { input         : '!<$.0>',
-              output        : '!<$.0>',
-              fixity        : Xpresion.PREFIX,
-              associativity : Xpresion.RIGHT,
-              priority      : 10,
-              otype         : Xpresion.T_BOL }
-,'~'    :   { input         : '~<$.0>',
-              output        : '~<$.0>',
-              fixity        : Xpresion.PREFIX,
-              associativity : Xpresion.RIGHT,
-              priority      : 10,
-              otype         : Xpresion.T_NUM }
-,'^'    :   { input         : '<$.0>^<$.1>',
-              output        : 'Math.pow(<$.0>,<$.1>)',
-              fixity        : Xpresion.INFIX,
-              associativity : Xpresion.RIGHT,
-              priority      : 11,
-              otype         : Xpresion.T_NUM }
-,'*'    :   { input         : '<$.0>*<$.1>',
-              output        : '(<$.0>*<$.1>)',
-              fixity        : Xpresion.INFIX,
-              associativity : Xpresion.LEFT,
-              priority      : 20,
-              otype         : Xpresion.T_NUM } 
-,'/'    :   { input         : '<$.0>/<$.1>',
-              output        : '(<$.0>/<$.1>)',
-              fixity        : Xpresion.INFIX,
-              associativity : Xpresion.LEFT,
-              priority      : 20,
-              otype         : Xpresion.T_NUM }
-,'%'    :   Op(
-            [1,'%',1]       ,INFIX      ,LEFT           ,20         ,'($0%$1)'  ,T_NUM 
-            )
-            // addition/concatenation/unary plus as polymorphic operators
-,'+'    :   Op().Polymorphic([
-            // array concatenation
-            ["${TOKEN} && !${OPERATOR_PRECEDING} && ${DEDUCED_TYPE}===Xpresion.T_ARY", Op(
-            [1,'+',1]       ,INFIX      ,LEFT           ,25         ,'Fn.ary_merge($0,$1)'  ,T_ARY 
-            )]
-            // string concatenation
-            ,["${TOKEN} && !${OPERATOR_PRECEDING} && ${DEDUCED_TYPE}===Xpresion.T_STR", Op(
-            [1,'+',1]       ,INFIX      ,LEFT           ,25         ,'($0+String($1))'  ,T_STR 
-            )]
-            // numeric addition
-            ,["${TOKEN} && !${OPERATOR_PRECEDING}", Op(
-            [1,'+',1]       ,INFIX      ,LEFT           ,25         ,'($0+$1)'  ,T_NUM 
-            )]
-            // unary plus
-            ,["!${TOKEN} || ${OPERATOR_PRECEDING}", Op(
-            ['+',1]         ,PREFIX     ,RIGHT          ,4          ,'$0'       ,T_NUM 
-            )]
-            ])
-,'-'    :   Op().Polymorphic([
-            // numeric subtraction
-            ["${TOKEN} && !${OPERATOR_PRECEDING}", Op(
-            [1,'-',1]       ,INFIX      ,LEFT           ,25         ,'($0-$1)'  ,T_NUM 
-            )]
-            // unary negation
-            ,["!${TOKEN} || ${OPERATOR_PRECEDING}", Op(
-            ['-',1]         ,PREFIX     ,RIGHT          ,4          ,'(-$0)'        ,T_NUM 
-            )]
-            ])
-,'>>'   :   Op(
-            [1,'>>',1]      ,INFIX      ,LEFT           ,30         ,'($0>>$1)'     ,T_NUM 
-            )
-,'<<'   :   Op(
-            [1,'<<',1]      ,INFIX      ,LEFT           ,30         ,'($0<<$1)'     ,T_NUM 
-            )
-,'>'    :   Op(
-            [1,'>',1]       ,INFIX      ,LEFT           ,35         ,'($0>$1)'      ,T_BOL 
-            )
-,'<'    :   Op(
-            [1,'<',1]       ,INFIX      ,LEFT           ,35         ,'($0<$1)'      ,T_BOL 
-            )
-,'>='   :   Op(
-            [1,'>=',1]      ,INFIX      ,LEFT           ,35         ,'($0>=$1)'     ,T_BOL 
-            )
-,'<='   :   Op(
-            [1,'<=',1]      ,INFIX      ,LEFT           ,35         ,'($0<=$1)'     ,T_BOL 
-            )
-,'=='   :   Op().Polymorphic([
-            // array equivalence
-            ["${DEDUCED_TYPE}===Xpresion.T_ARY", Op(
-            [1,'==',1]      ,INFIX      ,LEFT           ,40         ,'Fn.ary_eq($0,$1)' ,T_BOL 
-            )]
-            // default equivalence
-            ,["true", Op(
-            [1,'==',1]      ,INFIX      ,LEFT           ,40         ,'($0==$1)'     ,T_BOL 
-            )]
-            ])
-,'!='   :   Op(
-            [1,'!=',1]      ,INFIX      ,LEFT           ,40         ,'($0!=$1)'     ,T_BOL 
-            )
-,'is'   :   Op(
-            [1,'is',1]      ,INFIX      ,LEFT           ,40         ,'($0===$1)'    ,T_BOL 
-            )
-,'matches': Op(
-            [1,'matches',1] ,INFIX      ,NONE           ,40         ,'$0.test($1)'  ,T_BOL 
-            )
-,'in'   :   Op(
-            [1,'in',1]      ,INFIX      ,NONE           ,40         ,'Fn.contains($1,$0)'  ,T_BOL 
-            )
-,'&'    :   Op(
-            [1,'&',1]       ,INFIX      ,LEFT           ,45         ,'($0&$1)'      ,T_NUM 
-            )
-,'|'    :   Op(
-            [1,'|',1]       ,INFIX      ,LEFT           ,46         ,'($0|$1)'      ,T_NUM 
-            )
-,'&&'   :   Op(
-            [1,'&&',1]      ,INFIX      ,LEFT           ,47         ,'($0&&$1)'     ,T_BOL 
-            )
-,'||'   :   Op(
-            [1,'||',1]      ,INFIX      ,LEFT           ,48         ,'($0||$1)'     ,T_BOL 
-            )
-/*------------------------------------------
-                aliases
- -------------------------------------------*/
-,'or'    :  Alias( '||' )
-,'and'   :  Alias( '&&' )
-,'not'   :  Alias( '!' )
-});
-
-Xpresion.defFunc({
- 'min'      : {input:'min'    ,output:'Math.min($0)'     ,otype:T_NUM  }
-,'max'      : {input:'max'    ,output:'Math.max($0)'     ,otype:T_NUM  }
-,'pow'      : {input:'pow'    ,output:'Math.pow($0)'     ,otype:T_NUM  }
-,'sqrt'     : {input:'sqrt'   ,output:'Math.sqrt($0)'    ,otype:T_NUM  }
-,'len'      : {input:'len'    ,output:'Fn.len($0)'       ,otype:T_NUM  }
-,'int'      : {input:'int'    ,output:'parseInt($0)'     ,otype:T_NUM  }
-,'str'      : {input:'str'    ,output:'String($0)'       ,otype:T_STR  }
-,'clamp'    : {input:'clamp'  ,output:'Fn.clamp($0)'     ,otype:T_NUM  }
-,'sum'      : {input:'sum'    ,output:'Fn.sum($0)'       ,otype:T_NUM  }
-,'avg'      : {input:'avg'    ,output:'Fn.avg($0)'       ,otype:T_NUM  }
-,'time'     : {input:'time'   ,output:'Fn.time()'        ,otype:T_NUM          ,priority:1                      ,arity:0  }
-,'date'     : {input:'date'   ,output:'Fn.date($0)'      ,otype:T_STR  }
-/*---------------------------------------
-                aliases
- ----------------------------------------*/
- // ...
-});
-
-Xpresion.defRE({
-/*-----------------------------------------------
-token                re
--------------------------------------------------*/
- 't_spc'        :  /^((\s+))/
-,'t_nonspc'     :  /^((\S+))/
-,'t_special'    :  /^(([*.\-+\\\/\^\$\(\)\[\]|?<:>&~%!#@=_,;{}]+))/
-,'t_num'        :  /^((\d+(\.\d+)?))/
-,'t_ident'      :  /^(([a-zA-Z_][a-zA-Z0-9_]*))\b/
-,'t_var'        :  /^(\$([a-zA-Z0-9_][a-zA-Z0-9_.]*))\b/
-});
-
-Xpresion.defBlock({
- '\''       : {
-            block: ['\'', '\''],
-            escaped: true,
-            type: T_STR,
-            postfix: false
-            }
-,'"'        : {
-            block: ['"', '"'],
-            escaped: true,
-            type: T_STR, 
-            postfix: false
-            }
-,'`'        : {
-            block: ['`', '`'],
-            escaped: true,
-            type: T_REX, 
-            postfix: /^i/
-            }
-});
-
-Xpresion.defReserved({
- 'null'     : Tok(T_IDE, 'null', 'null')
-,'false'    : Tok(T_BOL, 'false', 'false')
-,'true'     : Tok(T_BOL, 'true', 'true')
-,'infinity' : Tok(T_NUM, 'Infinity', 'Fn.INF')
-,'nan'      : Tok(T_NUM, 'NaN', 'Fn.NAN')
-// aliases
-,'none'     : Alias('null')
-,'inf'      : Alias('infinity')
-});
-
-__configured = true;
+    ,'sum'          : function( ) {
+                        var args = arguments, i, l, s = 0;
+                        if (args[0] && is_array(args[0]) ) args = args[0];
+                        l = args.length;
+                        if ( l > 0 ) { for(i=0; i<l; i++) s += args[i]; }
+                        return s;
+                    }
+    ,'avg'          : function( ) {
+                        var args = arguments, i, l, s = 0;
+                        if (args[0] && is_array(args[0]) ) args = args[0];
+                        l = args.length;
+                        if ( l > 0 ) { for(i=0; i<l; i++) s += args[i]; s = s/l;}
+                        return s;
+                    }
+    ,'ary_eq'       : function( a1, a2 ) {
+                        var l = a1.length, i;
+                        if ( l===a2.length )
+                        {
+                            for (i=0; i<l; i++)
+                                if ( a1[i]!=a2[i] ) return false;
+                        }
+                        else return false;
+                        return true;
+                    }
+    ,'ary_merge'    : function(a1, a2) {
+                        return [ ].concat( a1 ).concat( a2 );
+                    }
+    ,'match'        : function( str, regex ) {
+                        return regex.test( str );
+                    }
+    ,'contains'     : function( o, i ) {
+                        return is_array(o) || is_string(o) ? -1 < o.indexOf( i ) : hasOwnProperty.call(o, i);
+                    }
+    ,'time'         : time
+    ,'date'         : date
+    }
+    }));
 };
 
 // init it
 Xpresion.init( );
+
 // export it
 return Xpresion;
 });

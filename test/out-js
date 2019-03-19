@@ -1,178 +1,249 @@
-Xpresion.VERSION 0.6.2
+Xpresion.VERSION 1.0.0
 
+==========================================
 Expression: 13
 Variables : []
 Evaluator : 13
+==========================================
 Expression: 1.32
 Variables : []
 Evaluator : 1.32
+==========================================
 Expression: -0.12
 Variables : []
 Evaluator : (-0.12)
+==========================================
 Expression: -3
 Variables : []
 Evaluator : (-3)
+==========================================
 Expression: ("1,2,3")+3
 Variables : []
 Evaluator : ("1,2,3"+String(3))
 Data      : {}
 Result    : "1,2,33"
+==========================================
 Expression: "1,2,3"+3
 Variables : []
 Evaluator : ("1,2,3"+String(3))
 Data      : {}
 Result    : "1,2,33"
+==========================================
 Expression: "1,2,3"+3+4
 Variables : []
 Evaluator : (("1,2,3"+String(3))+String(4))
 Data      : {}
 Result    : "1,2,334"
+==========================================
 Expression: [1,2,3]+3
 Variables : []
 Evaluator : Fn.ary_merge([1,2,3],3)
 Data      : {}
 Result    : [1,2,3,3]
+==========================================
 Expression: -3+2
 Variables : []
 Evaluator : ((-3)+2)
 Data      : {}
 Result    : -1
+==========================================
 Expression: 1-3+2
 Variables : []
 Evaluator : ((1-3)+2)
 Data      : {}
 Result    : 0
+==========================================
 Expression: 1+-3
 Variables : []
 Evaluator : (1+(-3))
 Data      : {}
 Result    : -2
+==========================================
 Expression: +1+3
 Variables : []
 Evaluator : (1+3)
 Data      : {}
 Result    : 4
+==========================================
 Expression: 2*-1
 Variables : []
 Evaluator : (2*(-1))
+==========================================
 Expression: 2*(-1)
 Variables : []
 Evaluator : (2*(-1))
+==========================================
 Expression: 2^-1
 Variables : []
 Evaluator : Math.pow(2,(-1))
+==========================================
 Expression: 2^(-1)
 Variables : []
 Evaluator : Math.pow(2,(-1))
+==========================================
 Expression: 2^-1^3
 Variables : []
 Evaluator : Math.pow(2,Math.pow((-1),3))
+==========================================
 Expression: -2^-1^3
 Variables : []
 Evaluator : Math.pow((-2),Math.pow((-1),3))
+==========================================
 Expression: 2^(-1)^3
 Variables : []
 Evaluator : Math.pow(2,Math.pow((-1),3))
+==========================================
+Expression: sqrt(2)
+Variables : []
+Evaluator : Math.sqrt(2)
+Data      : {}
+Result    : 1.4142135623730951
+==========================================
 Expression: $v
 Variables : [v]
 Evaluator : Var["v"]
+==========================================
+Expression: $v.key.0.key
+Variables : [v]
+Evaluator : Xpresion.GET(Var["v"],["key","0","key"])
+Data      : {
+    "v": {
+        "key": [
+            {
+                "key": "correct"
+            },
+            "foo"
+        ]
+    }
+}
+Result    : "correct"
+==========================================
 Expression: True
 Variables : []
 Evaluator : true
+==========================================
 Expression: "string"
 Variables : []
 Evaluator : "string"
+==========================================
 Expression: ["a","rra","y"]
 Variables : []
 Evaluator : ["a","rra","y"]
+==========================================
 Expression: `^regex?`i
 Variables : []
 Evaluator : Cache.re_1
+==========================================
 Expression: 0 == 1
 Variables : []
 Evaluator : (0==1)
+==========================================
 Expression: TRUE == False
 Variables : []
 Evaluator : (true==false)
+==========================================
 Expression: TRUE is False
 Variables : []
 Evaluator : (true===false)
+==========================================
 Expression: 1+2
 Variables : []
 Evaluator : (1+2)
+==========================================
 Expression: 1+2+3
 Variables : []
 Evaluator : ((1+2)+3)
+==========================================
 Expression: 1+2*3
 Variables : []
 Evaluator : (1+(2*3))
+==========================================
 Expression: 1*2+3
 Variables : []
 Evaluator : ((1*2)+3)
+==========================================
 Expression: 1*2*3
 Variables : []
 Evaluator : ((1*2)*3)
+==========================================
 Expression: 1+2/3
 Variables : []
 Evaluator : (1+(2/3))
+==========================================
 Expression: 1*2/3
 Variables : []
 Evaluator : ((1*2)/3)
+==========================================
 Expression: 1^2
 Variables : []
 Evaluator : Math.pow(1,2)
+==========================================
 Expression: 1^2^3
 Variables : []
 Evaluator : Math.pow(1,Math.pow(2,3))
+==========================================
 Expression: 1^(2^3)
 Variables : []
 Evaluator : Math.pow(1,Math.pow(2,3))
+==========================================
 Expression: (1^2)^3
 Variables : []
 Evaluator : Math.pow(Math.pow(1,2),3)
+==========================================
 Expression: ((1^2))^3
 Variables : []
 Evaluator : Math.pow(Math.pow(1,2),3)
+==========================================
 Expression: `^regex?`i matches "string"
 Variables : []
-Evaluator : Cache.re_1.test("string")
+Evaluator : Fn.match("string",Cache.re_1)
+==========================================
 Expression: `^regex?`i matches "string" and `^regex?`i matches "string2"
 Variables : []
-Evaluator : (Cache.re_1.test("string")&&Cache.re_1.test("string2"))
+Evaluator : (Fn.match("string",Cache.re_1)&&Fn.match("string2",Cache.re_1))
+==========================================
 Expression: $v in ["a","b","c"]
 Variables : [v]
 Evaluator : Fn.contains(["a","b","c"],Var["v"])
-Expression: 1 ? : (1+2) (3+4)
-Variables : []
-Evaluator : 
+==========================================
+Error: Xpresion Error: Operator ":" expecting 1 prior argument(s) at "1 ? : (1+2) (3+4)"
+==========================================
 Expression: 1 ? sum(1,2) : (3+4)
 Variables : []
 Evaluator : (1?Fn.sum(1,2):(3+4))
+==========================================
 Expression: 1 ? 1+2 : (3+4)
 Variables : []
 Evaluator : (1?(1+2):(3+4))
+==========================================
 Expression: 1 ? (2+3) : 2 ? (3+4) : (4+5)
 Variables : []
 Evaluator : (1?(2+3):(2?(3+4):(4+5)))
+==========================================
 Expression: date("Y-m-d H:i:s")
 Variables : []
 Evaluator : Fn.date("Y-m-d H:i:s")
 Data      : {}
-Result    : "2015-07-19 21:16:57"
+Result    : "2019-03-19 13:57:23"
+==========================================
 Expression: time()
 Variables : []
 Evaluator : Fn.time()
 Data      : {}
-Result    : 1437329817
+Result    : 1552996643
+==========================================
 Expression: date("Y-m-d H:i:s", time())
 Variables : []
 Evaluator : Fn.date("Y-m-d H:i:s",Fn.time())
+==========================================
 Expression: pow(1,pow(2,3))
 Variables : []
 Evaluator : Math.pow(1,Math.pow(2,3))
+==========================================
 Expression: pow(pow(2,3),4)
 Variables : []
 Evaluator : Math.pow(Math.pow(2,3),4)
+==========================================
 Expression: pow(pow(1,2),pow(2,3))
 Variables : []
 Evaluator : Math.pow(Math.pow(1,2),Math.pow(2,3))
