@@ -1540,7 +1540,7 @@ class XpresionFunc extends XpresionOp
         parent::__construct(
             is_string($input) ? array($input, null !== $arity ? $arity : 1) : $input,
             $output,
-            $otype,
+            null !== $otype ? $otype : Xpresion::T_MIX,
             Xpresion::PREFIX,
             null !== $associativity ? $associativity : Xpresion::RIGHT,
             null !== $priority ? $priority : 1,
@@ -2201,11 +2201,14 @@ class Xpresion
                     continue;
                 }
 
-                $t = $xpr->t_tok( $conf, $m[ 1 ] );
+                /*$t = $xpr->t_tok( $conf, $m[ 1 ] );
                 $t_index+=1;
                 array_push($AST, $t->node(null, $t_index)); // pass-through ..
-                $i += strlen($m[ 0 ]);
+                $i += strlen($m[ 0 ]);*/
                 //continue
+                $err = 1;
+                $errmsg = 'Unknown token "'.$m[0].'"'; // exit with error
+                break;
             }
         }
 
@@ -2564,7 +2567,7 @@ class Xpresion
         ,'?'    =>  array(
                          'input'        => array(1,'?',1,':',1)
                         ,'output'       => '(<$.0>?<$.1>:<$.2>)'
-                        ,'otype'        => Xpresion::T_BOL
+                        ,'otype'        => Xpresion::T_MIX
                         ,'fixity'       => Xpresion::INFIX
                         ,'associativity'=> Xpresion::RIGHT
                         ,'priority'     => 100
@@ -2869,6 +2872,11 @@ class Xpresion
         ,'int'      => array(
                              'input'    => 'int'
                             ,'output'   => 'intval(<$.0>)'
+                            ,'otype'    => Xpresion::T_NUM
+                    )
+        ,'float'    => array(
+                             'input'    => 'float'
+                            ,'output'   => 'floatval(<$.0>)'
                             ,'otype'    => Xpresion::T_NUM
                     )
         ,'str'      => array(

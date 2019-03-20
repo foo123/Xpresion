@@ -24,6 +24,7 @@ function test_expr($expr, $evaluate=false)
 
 echo_( 'Xpresion.VERSION ' . Xpresion::VERSION . "\n" );
 
+test_expr('hex2dec($this)');
 test_expr('13');
 test_expr('1.32');
 test_expr('-0.12');

@@ -23,6 +23,7 @@ function test_expr(expr, evaluate)
 
 echo( 'Xpresion.VERSION ' + Xpresion.VERSION + "\n" );
 
+test_expr('Math.pow(this)');
 test_expr('13');
 test_expr('1.32');
 test_expr('-0.12');

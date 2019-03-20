@@ -1647,6 +1647,7 @@ Xpresion.parse_delimited_block = function parse_delimited_block(s, i, l, delim, 
     }
     return p;
 };
+Xpresion.parse_re_flags = parse_re_flags;
 
 Xpresion.parse = function( xpr, conf ) {
     var expr, l
@@ -1823,11 +1824,15 @@ Xpresion.parse = function( xpr, conf ) {
                 i += m[ 0 ].length;
                 continue;
             }
-            t = xpr.t_tok( conf, m[ 1 ] );
+            /*t = xpr.t_tok( conf, m[ 1 ] );
             t_index+=1;
             AST.push( t.node(null, t_index) ); // pass-through ..
-            i += m[ 0 ].length;
+            i += m[ 0 ].length;*/
             //continue;
+            err = 1;
+            errmsg = 'Unknown token "'+m[0]+'"'; // exit with error
+            break;
+
         }
     }
 
@@ -2271,6 +2276,8 @@ Xpresion[PROTO] = {
 
     ,compile: function( AST, conf ) {
         // depth-first traversal and rendering of Abstract Syntax Tree (AST)
+        if ( !conf )
+            conf = Xpresion.defaultConfiguration();
         var evaluator_str = Node.DFT( AST, Xpresion.render, true );
         return [evaluator_str, evaluator_factory(evaluator_str,conf.FN,this._cache)];
     }
@@ -2383,7 +2390,7 @@ Xpresion.init = function( ) {
     ,'`': {
         'type': T_REX,
         'parse': Xpresion.parse_delimited_block,
-        'rest': parse_re_flags
+        'rest': Xpresion.parse_re_flags
     }
     }
 
@@ -2435,7 +2442,7 @@ Xpresion.init = function( ) {
     ,'?'    :   {
                     'input'         : [1,'?',1,':',1]
                     ,'output'       : '(<$.0>?<$.1>:<$.2>)'
-                    ,'otype'        : T_BOL
+                    ,'otype'        : T_MIX
                     ,'fixity'       : INFIX
                     ,'associativity': RIGHT
                     ,'priority'     : 100
@@ -2744,6 +2751,11 @@ Xpresion.init = function( ) {
     ,'int'      : {
                     'input'     : 'int'
                     ,'output'   : 'parseInt(<$.0>)'
+                    ,'otype'    : T_NUM
+                }
+    ,'float'    : {
+                    'input'     : 'float'
+                    ,'output'   : 'parseFloat(<$.0>)'
                     ,'otype'    : T_NUM
                 }
     ,'str'      : {

@@ -1,6 +1,8 @@
 Xpresion.VERSION 1.0.0
 
 ==========================================
+Error: Xpresion Error: Unknown token "Math.pow(this)" at "Math.pow(this)"
+==========================================
 Expression: 13
 Variables : []
 Evaluator : 13
@@ -224,13 +226,13 @@ Expression: date("Y-m-d H:i:s")
 Variables : []
 Evaluator : Fn.date("Y-m-d H:i:s")
 Data      : {}
-Result    : "2019-03-19 13:57:23"
+Result    : "2019-03-20 11:53:52"
 ==========================================
 Expression: time()
 Variables : []
 Evaluator : Fn.time()
 Data      : {}
-Result    : 1552996643
+Result    : 1553075632
 ==========================================
 Expression: date("Y-m-d H:i:s", time())
 Variables : []

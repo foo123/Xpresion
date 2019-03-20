@@ -42,6 +42,7 @@ setattr(testObj,'key',[{'key':'correct'},'foo'])
 
 echo( 'Xpresion.VERSION ' + Xpresion.VERSION + "\n" )
 
+test_expr('math.pow(self)');
 test_expr('13')
 test_expr('1.32')
 test_expr('-0.12')

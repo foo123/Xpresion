@@ -2,6 +2,8 @@ Xpresion Module loaded succesfully
 Xpresion.VERSION 1.0.0
 
 ==========================================
+Xpresion Error: Unknown token "math.pow(self)" at math.pow(self)
+==========================================
 Expression: 13
 Variables : []
 Evaluator : 13
@@ -107,7 +109,7 @@ Evaluator : Var["v"]
 Expression: $v.key.0.key
 Variables : [v]
 Evaluator : Xpresion.GET(Var["v"],["key","0","key"])
-Data      : {'v': <__main__.TestObject object at 0x01D964F0>}
+Data      : {'v': <__main__.TestObject object at 0x021E64F0>}
 Result    : 'correct'
 ==========================================
 Expression: True
@@ -216,13 +218,13 @@ Expression: date("Y-m-d H:i:s")
 Variables : []
 Evaluator : Fn.date("Y-m-d H:i:s")
 Data      : {}
-Result    : '2019-03-19 13:57:21'
+Result    : '2019-03-20 11:53:57'
 ==========================================
 Expression: time()
 Variables : []
 Evaluator : Fn.time()
 Data      : {}
-Result    : 1552996641
+Result    : 1553075637
 ==========================================
 Expression: date("Y-m-d H:i:s", time())
 Variables : []

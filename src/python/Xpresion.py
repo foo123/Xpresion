@@ -1761,6 +1761,8 @@ class Xpresion:
             esc = ((not esc) and ('\\' == ch)) if is_escaped else False
         return p
 
+    parse_re_flags = parse_re_flags
+    
     def parse(xpr, conf):
         get_entry = Alias.get_entry
         reduce = Xpresion.reduce
@@ -1933,11 +1935,14 @@ class Xpresion:
                     i += len(m.group( 0 ))
                     continue
 
-                t = xpr.t_tok( conf, m.group( 1 ) )
-                t_index+=1
-                AST.append( t.node(None, t_index) ) # pass-through ..
-                i += len(m.group( 0 ))
+                #t = xpr.t_tok( conf, m.group( 1 ) )
+                #t_index+=1
+                #AST.append( t.node(None, t_index) ) # pass-through ..
+                #i += len(m.group( 0 ))
                 #continue
+                err = 1
+                errmsg = 'Unknown token "'+m.group( 0 )+'"' # exit with error
+                break
 
 
 
@@ -1986,7 +1991,7 @@ class Xpresion:
         return tok.render( args )
 
     def GET(obj, keys=list()):
-        if not len(keys): return obj
+        if (not keys) or (not len(keys)): return obj
 
         o = obj
         c = len(keys)
@@ -2191,7 +2196,7 @@ class Xpresion:
         ,'`': {
             'type': T_REX,
             'parse': Xpresion.parse_delimited_block,
-            'rest': parse_re_flags
+            'rest': Xpresion.parse_re_flags
         }
         }
 
@@ -2243,7 +2248,7 @@ class Xpresion:
         ,'?'    :   {
                         'input'         : [1,'?',1,':',1]
                         ,'output'       : '(<$.1> if <$.0> else <$.2>)'
-                        ,'otype'        : T_BOL
+                        ,'otype'        : T_MIX
                         ,'fixity'       : INFIX
                         ,'associativity': RIGHT
                         ,'priority'     : 100
@@ -2552,6 +2557,11 @@ class Xpresion:
         ,'int'      : {
                         'input'     : 'int'
                         ,'output'   : 'int(<$.0>)'
+                        ,'otype'    : T_NUM
+                    }
+        ,'float'    : {
+                        'input'     : 'float'
+                        ,'output'   : 'float(<$.0>)'
                         ,'otype'    : T_NUM
                     }
         ,'str'      : {
