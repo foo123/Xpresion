@@ -15,20 +15,20 @@ A simple, fast and flexible **eXpression Parser Engine** (with custom functions 
 
 **see also:**  
 
-* [Contemplate](https://github.com/foo123/Contemplate) a light-weight template engine for Node/XPCOM/JS, PHP, Python
-* [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets used as (template) plugins and/or standalone for PHP, Node/XPCOM/JS, Python (can be used as plugins for Contemplate engine as well)
+* [Contemplate](https://github.com/foo123/Contemplate) a light-weight template engine for Node.js / Browser / XPCOM Javascript, PHP, Python
+* [HtmlWidget](https://github.com/foo123/HtmlWidget) html widgets used as (template) plugins and/or standalone for Node.js / Browser / XPCOM Javascript, PHP, Python (can be used as plugins for Contemplate engine as well)
 * [Tao](https://github.com/foo123/Tao.js) A simple, tiny, isomorphic, precise and fast template engine for handling both string and live dom based templates
 * [ModelView](https://github.com/foo123/modelview.js) a light-weight and flexible MVVM framework for JavaScript/HTML5
 * [ModelView MVC jQueryUI Widgets](https://github.com/foo123/modelview-widgets) plug-n-play, state-full, full-MVC widgets for jQueryUI using modelview.js (e.g calendars, datepickers, colorpickers, tables/grids, etc..) (in progress)
-* [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for Node/XPCOM/JS, PHP, Python
-* [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for Node/XPCOM/JS, PHP, Python
-* [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for Node/XPCOM/JS, PHP, Python
-* [StringTemplate](https://github.com/foo123/StringTemplate) simple and flexible string templates for PHP, Python, Node/XPCOM/JS
-* [GrammarTemplate](https://github.com/foo123/GrammarTemplate) versatile and intuitive grammar-based templating for PHP, Python, Node/XPCOM/JS
-* [Dialect](https://github.com/foo123/Dialect) a simple cross-platform SQL construction for PHP, Python, Node/XPCOM/JS
-* [Abacus](https://github.com/foo123/Abacus) a fast combinatorics and computation library for Node/XPCOM/JS, PHP, Python
+* [Dromeo](https://github.com/foo123/Dromeo) a flexible, agnostic router for Node.js / Browser / XPCOM Javascript, PHP, Python
+* [PublishSubscribe](https://github.com/foo123/PublishSubscribe) a simple and flexible publish-subscribe pattern implementation for Node.js / Browser / XPCOM Javascript, PHP, Python
+* [Regex Analyzer/Composer](https://github.com/foo123/RegexAnalyzer) Regular Expression Analyzer and Composer for Node.js / Browser / XPCOM Javascript, PHP, Python
+* [StringTemplate](https://github.com/foo123/StringTemplate) simple and flexible string templates for Node.js / Browser / XPCOM Javascript, PHP, Python
+* [GrammarTemplate](https://github.com/foo123/GrammarTemplate) versatile and intuitive grammar-based templating for Node.js / Browser / XPCOM Javascript, PHP, Python
+* [Dialect](https://github.com/foo123/Dialect) a simple cross-platform SQL construction for Node.js / Browser / XPCOM Javascript, PHP, Python
+* [Abacus](https://github.com/foo123/Abacus) a fast combinatorics and computation library for Node.js / Browser / XPCOM Javascript, PHP, Python
 * [Simulacra](https://github.com/foo123/Simulacra) a simulation, algebraic, probability and combinatorics PHP package for scientific computations
-* [RT](https://github.com/foo123/RT) client-side real-time communication for Node/XPCOM/JS with support for Poll/BOSH/WebSockets
+* [RT](https://github.com/foo123/RT) client-side real-time communication for Node.js / Browser / XPCOM Javascript with support for Poll / BOSH / WebSockets
 * [Asynchronous](https://github.com/foo123/asynchronous.js) a simple manager for async, linearised, parallelised, interleaved and sequential tasks for JavaScript
 
 
@@ -62,7 +62,7 @@ Configuration is intutive, easy and flexible (see examples).
 
 However, since `Xpresion` is a parser engine, adding a default configuration, it can itself be a parser as well (out-of-the-box).
 
-**NOTE:** `Xpresion` (v.1.0.0+) uses [GrammarTemplates](https://github.com/foo123/GrammarTemplate) for operator output. This is more flexible than simply using [StringTemplates](https://github.com/foo123/StringTemplate) as previously, since it supports blocks of optional code, default values, optional placeholders and many other things. Only make sure to escape (with `\` character) all `"<"`,`">"`,`"["`,`"]"` literal characters inside the output you define for operators and functions (see default configuration example below)
+**NOTE:** `Xpresion` (v.1.0.0+) uses [Grammar Templates](https://github.com/foo123/GrammarTemplate) for operator output. This is more flexible than simply using [String Templates](https://github.com/foo123/StringTemplate) as previously, since it supports blocks of optional code, default values, optional placeholders and many other things. Only make sure to escape (with `\` character) all `"<"`,`">"`,`"["`,`"]"` literal characters inside the output you define for operators and functions (see default configuration example below)
 
 **Features:**
 
@@ -898,10 +898,20 @@ Xpresion.defaultConfiguration(Configuration({
                 ,'output'   : 'parseInt(<$.0>)'
                 ,'otype'    : T_NUM
             }
+,'float'    : {
+                'input'     : 'float'
+                ,'output'   : 'parseFloat(<$.0>)'
+                ,'otype'    : T_NUM
+            }
 ,'str'      : {
                 'input'     : 'str'
                 ,'output'   : 'String(<$.0>)'
                 ,'otype'    : T_STR
+            }
+,'array'    : {
+                'input'     : 'array'
+                ,'output'   : 'Fn.ary(<$.0>)'
+                ,'otype'    : T_ARY
             }
 ,'clamp'    : {
                 'input'     : 'clamp'
@@ -965,6 +975,9 @@ Xpresion.defaultConfiguration(Configuration({
                     if ( l > 0 ) { for(i=0; i<l; i++) s += args[i]; s = s/l;}
                     return s;
                 }
+,'ary'          : function( x ) {
+                    return is_array(x) ? x : [x];
+                }
 ,'ary_eq'       : function( a1, a2 ) {
                     var l = a1.length, i;
                     if ( l===a2.length )
@@ -1006,8 +1019,8 @@ running in linear-time ( `O(n)` ) in the input sequence
 
 #### TODO
 
-* use [GrammarTemplate](https://github.com/foo123/GrammarTemplate) for more powerful and flexible rewrite output [DONE]
+* use [Grammar Template](https://github.com/foo123/GrammarTemplate) for more powerful and flexible rewrite output [DONE]
 * add full support for optional arguments in `operators`/`functions`  [ALMOST DONE]
-* add full support for (`xml`-like) `tags` in `expressions`
-* performance tests
+* add support for (`xml`-like) `tags` in `expressions`
+* performance/unit tests [DONE PARTIALLY]
 

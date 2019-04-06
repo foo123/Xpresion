@@ -2763,6 +2763,11 @@ Xpresion.init = function( ) {
                     ,'output'   : 'String(<$.0>)'
                     ,'otype'    : T_STR
                 }
+    ,'array'    : {
+                    'input'     : 'array'
+                    ,'output'   : 'Fn.ary(<$.0>)'
+                    ,'otype'    : T_ARY
+                }
     ,'clamp'    : {
                     'input'     : 'clamp'
                     ,'output'   : 'Fn.clamp(<$.0>)'
@@ -2824,6 +2829,9 @@ Xpresion.init = function( ) {
                         l = args.length;
                         if ( l > 0 ) { for(i=0; i<l; i++) s += args[i]; s = s/l;}
                         return s;
+                    }
+    ,'ary'          : function( x ) {
+                        return is_array(x) ? x : [x];
                     }
     ,'ary_eq'       : function( a1, a2 ) {
                         var l = a1.length, i;

@@ -1,6 +1,42 @@
 Xpresion.VERSION 1.0.0
 
 ==========================================
+Expression: array("string")
+Variables : []
+Evaluator : Fn.ary("string")
+Data      : {}
+Result    : ["string"]
+==========================================
+Expression: array(["ar","ra","y"])
+Variables : []
+Evaluator : Fn.ary(["ar","ra","y"])
+Data      : {}
+Result    : ["ar","ra","y"]
+==========================================
+Expression: str(2)
+Variables : []
+Evaluator : String(2)
+Data      : {}
+Result    : "2"
+==========================================
+Expression: str("2")
+Variables : []
+Evaluator : String("2")
+Data      : {}
+Result    : "2"
+==========================================
+Expression: int(2)
+Variables : []
+Evaluator : parseInt(2)
+Data      : {}
+Result    : 2
+==========================================
+Expression: int("2")
+Variables : []
+Evaluator : parseInt("2")
+Data      : {}
+Result    : 2
+==========================================
 Error: Xpresion Error: Unknown token "Math.pow(this)" at "Math.pow(this)"
 ==========================================
 Expression: 13
@@ -226,13 +262,13 @@ Expression: date("Y-m-d H:i:s")
 Variables : []
 Evaluator : Fn.date("Y-m-d H:i:s")
 Data      : {}
-Result    : "2019-03-20 11:53:52"
+Result    : "2019-04-06 17:01:05"
 ==========================================
 Expression: time()
 Variables : []
 Evaluator : Fn.time()
 Data      : {}
-Result    : 1553075632
+Result    : 1554559265
 ==========================================
 Expression: date("Y-m-d H:i:s", time())
 Variables : []

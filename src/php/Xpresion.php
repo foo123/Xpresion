@@ -2884,6 +2884,11 @@ class Xpresion
                             ,'output'   => 'strval(<$.0>)'
                             ,'otype'    => Xpresion::T_STR
                     )
+        ,'array'    => array(
+                             'input'    => 'array'
+                            ,'output'   => '$Fn-\\>ary(<$.0>)'
+                            ,'otype'    => Xpresion::T_ARY
+                    )
         ,'clamp'    => array(
                              'input'    => 'clamp'
                             ,'output'   => '$Fn-\\>clamp(<$.0>)'
@@ -2947,16 +2952,19 @@ class Xpresion
                         foreach ($values as $v) $s += $v;
                         return $l > 0 ? $s/$l : $s;
                     }
-        ,'ary_merge'=> function($a1, $a2) {
-                        return array_merge((array)$a1, (array)$a2);
+        ,'ary'      => function( $x ) {
+                        return is_array($x) ? $x : array($x);
                     }
-        ,'ary_eq'   => function($a1, $a2) {
+        ,'ary_eq'   => function( $a1, $a2 ) {
                         return ((array)$a1) == ((array)$a2);
                     }
-        ,'match'    => function($str, $regex) {
+        ,'ary_merge'=> function( $a1, $a2 ) {
+                        return array_merge((array)$a1, (array)$a2);
+                    }
+        ,'match'    => function( $str, $regex ) {
                         return (bool)preg_match($regex, $str, $m);
                     }
-        ,'contains' => function($o, $i) {
+        ,'contains' => function( $o, $i ) {
                         if ( is_string($o) ) return (false !== strpos($o, strval($i)));
                         elseif ( XpresionUtils::is_assoc_array($o) ) return array_key_exists($i, $o);
                         elseif ( is_array($o) ) return in_array($i, $o);

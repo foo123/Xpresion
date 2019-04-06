@@ -42,6 +42,12 @@ setattr(testObj,'key',[{'key':'correct'},'foo'])
 
 echo( 'Xpresion.VERSION ' + Xpresion.VERSION + "\n" )
 
+test_expr('array("string")',True)
+test_expr('array(["ar","ra","y"])',True)
+test_expr('str(2)',True)
+test_expr('str("2")',True)
+test_expr('int(2)',True)
+test_expr('int("2")',True)
 test_expr('math.pow(self)');
 test_expr('13')
 test_expr('1.32')

@@ -23,6 +23,12 @@ function test_expr(expr, evaluate)
 
 echo( 'Xpresion.VERSION ' + Xpresion.VERSION + "\n" );
 
+test_expr('array("string")',true);
+test_expr('array(["ar","ra","y"])',true);
+test_expr('str(2)',true);
+test_expr('str("2")',true);
+test_expr('int(2)',true);
+test_expr('int("2")',true);
 test_expr('Math.pow(this)');
 test_expr('13');
 test_expr('1.32');

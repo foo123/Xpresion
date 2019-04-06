@@ -2569,6 +2569,11 @@ class Xpresion:
                         ,'output'   : 'str(<$.0>)'
                         ,'otype'    : T_STR
                     }
+        ,'array'    : {
+                        'input'     : 'array'
+                        ,'output'   : 'Fn.ary(<$.0>)'
+                        ,'otype'    : T_ARY
+                    }
         ,'clamp'    : {
                         'input'     : 'clamp'
                         ,'output'   : 'Fn.clamp(<$.0>)'
@@ -2609,9 +2614,10 @@ class Xpresion:
         ,'len'      : lambda v: 0 if v is None else (len(v) if isinstance(v,(str,list,tuple,dict)) else 1)
         ,'sum'      : sum
         ,'avg'      : avg
-        ,'ary_merge': ary_merge
+        ,'ary'      : lambda x: x if isinstance(x,list) else (list(x) if isinstance(x,tuple) else [x])
         ,'ary_eq'   : ary_eq
-        ,'match'    : lambda s, regex: bool(re.search(regex, s ))
+        ,'ary_merge': ary_merge
+        ,'match'    : lambda s, regex: bool(re.search(regex, s))
         ,'contains' : lambda o, i: bool(i in o)
         ,'time'     : php_time
         ,'date'     : php_date
