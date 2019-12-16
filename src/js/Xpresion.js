@@ -2,7 +2,7 @@
 *
 *   Xpresion
 *   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node.js and Browser
-*   @version: 1.0.0
+*   @version: 1.0.1
 *
 *   https://github.com/foo123/Xpresion
 *
@@ -24,7 +24,7 @@ else if ( !(name in root) ) /* Browser/WebWorker/.. */
     /* module factory */        function ModuleFactory__Xpresion( undef ){
 "use strict";
 
-var __version__ = "1.0.0",
+var __version__ = "1.0.1",
     PROTO = 'prototype', hasOwnProperty = Object[PROTO].hasOwnProperty, toString = Object[PROTO].toString,
     toJSON = JSON.stringify, Keys = Object.keys, Extend = Object.create,
     floor = Math.floor, round = Math.round, abs = Math.abs, max = Math.max,
@@ -1332,6 +1332,26 @@ var
 ,T_EMPTY     = Xpresion.T_EMPTY    =   1024
 ;
 
+Xpresion.TYPES = {
+    '0' : 'T_DUM',
+    '1' : 'T_MIX',
+    //'1' => 'T_DFT',
+    '16' : 'T_IDE',
+    '17' : 'T_VAR',
+    '32' : 'T_LIT',
+    '33' : 'T_NUM',
+    '34' : 'T_STR',
+    '35' : 'T_REX',
+    '36' : 'T_BOL',
+    '37' : 'T_DTM',
+    '38' : 'T_ARY',
+    '128' : 'T_OP',
+    '129' : 'T_N_OP',
+    '130' : 'T_POLY_OP',
+    '131' : 'T_FUN',
+    '1024' : 'T_EMPTY'
+};
+
 Xpresion.Tpl = GrammarTemplate;
 
 function Alias( alias )
@@ -2129,7 +2149,7 @@ Op[PROTO].Polymorphic = function(morphes) {
 };
 Op[PROTO].morph = function( args ) {
     var morphes = this.morphes, l = morphes.length, i = 0,
-        op, minop = morphes[0][1], found = false, matched, nargs;
+        op, minop = morphes[0][1], found = false, matched, nargs, deduced_type, indt, indo;
 
     // [pos,token_queue,op_queue]
     if (args.length < 7)
@@ -2137,8 +2157,20 @@ Op[PROTO].morph = function( args ) {
         args.push(args[1].length ? args[1][args[1].length-1] : false);
         args.push(args[2].length ? args[2][0] : false);
         args.push(args[4] ? (args[4].pos+1===args[0]) : false);
-        args.push(args[4] ? args[4].type : (args[3] ? args[3].type : 0));
-        //args.push(Xpresion);
+        deduced_type = 0; // T_DUM
+        indt = args[1].length-1; indo = 0;
+        // try to inherit type from other tokens/ops if current type is T_DUM(0), eg for bracket operator
+        while (!deduced_type)
+        {
+            if (indt>=0 && indo<args[2].length && indo+1<args[2].length && (args[2][indo+1].node instanceof Xpresion.Func))
+                deduced_type = /*args[1][indt].pos>args[2][indo].pos ?*/ args[1][indt--].type /*: args[2][indo++].type*/;
+            else if (indo<args[2].length)
+                deduced_type = args[2][indo++].type;
+            else if (indt>=0)
+                deduced_type = args[1][indt--].type;
+            else break;
+        }
+        args.push(deduced_type);
     }
     // array('${POS}'=>0,'${TOKS}'=>1,'${OPS}'=>2,'${TOK}'=>3,'${OP}'=>4,'${PREV_IS_OP}'=>5,'${DEDUCED_TYPE}'=>6)
     nargs = {
@@ -2149,6 +2181,7 @@ Op[PROTO].morph = function( args ) {
         OP: args[4],
         PREV_IS_OP: args[5],
         DEDUCED_TYPE: args[6]
+        //DEDUCED_TYPE_STR: Xpresion.TYPES[deduced_type]
     };
 
     while ( i < l )
@@ -2436,7 +2469,7 @@ Xpresion.init = function( ) {
                     ,'otype'        : T_DFT
                     ,'fixity'       : INFIX
                     ,'associativity': LEFT
-                    ,'priority'     : 3
+                    ,'priority'     : 103 // comma operator needs to have very low priority because it can break other expressions which are between commas
                 }
     // n-ary (ternary) if-then-else operator
     ,'?'    :   {

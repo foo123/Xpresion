@@ -1,4 +1,67 @@
-Xpresion.VERSION 1.0.0
+Xpresion.VERSION 1.0.1
+
+==========================================
+Expression: (123+456)
+Variables : []
+Evaluator : (123+456)
+Data      : array(0) {
+}
+
+Result    : int(579)
+
+==========================================
+Expression: ("123"+456)
+Variables : []
+Evaluator : ("123".strval(456))
+Data      : array(0) {
+}
+
+Result    : string(6) "123456"
+
+==========================================
+Expression: ("123"+"456")
+Variables : []
+Evaluator : ("123".strval("456"))
+Data      : array(0) {
+}
+
+Result    : string(6) "123456"
+
+==========================================
+Expression: len("123"+456)
+Variables : []
+Evaluator : $Fn->len(("123".strval(456)))
+Data      : array(0) {
+}
+
+Result    : int(6)
+
+==========================================
+Expression: len("123"+"456")
+Variables : []
+Evaluator : $Fn->len(("123".strval("456")))
+Data      : array(0) {
+}
+
+Result    : int(6)
+
+==========================================
+Expression: sum(1,2+3,4)
+Variables : []
+Evaluator : $Fn->sum(1,(2+3),4)
+Data      : array(0) {
+}
+
+Result    : int(10)
+
+==========================================
+Expression: sum(1,(2+3),4)
+Variables : []
+Evaluator : $Fn->sum(1,(2+3),4)
+Data      : array(0) {
+}
+
+Result    : int(10)
 
 ==========================================
 Expression: array("string")
@@ -110,6 +173,33 @@ Data      : array(0) {
 Result    : string(7) "1,2,334"
 
 ==========================================
+Expression: "1,2,3"+3+len("123")
+Variables : []
+Evaluator : (("1,2,3".strval(3)).strval($Fn->len("123")))
+Data      : array(0) {
+}
+
+Result    : string(7) "1,2,333"
+
+==========================================
+Expression: "1,2,3"+3+sum(1,2,3)
+Variables : []
+Evaluator : (("1,2,3".strval(3)).strval($Fn->sum(1,2,3)))
+Data      : array(0) {
+}
+
+Result    : string(7) "1,2,336"
+
+==========================================
+Expression: sum(1,len("123"+456),2)
+Variables : []
+Evaluator : $Fn->sum(1,$Fn->len(("123".strval(456))),2)
+Data      : array(0) {
+}
+
+Result    : int(9)
+
+==========================================
 Expression: [1,2,3]+3
 Variables : []
 Evaluator : $Fn->ary_merge(array(1,2,3),3)
@@ -210,11 +300,11 @@ Variables : [v]
 Evaluator : Xpresion::GET($Var["v"],array("key","0","key"))
 Data      : array(1) {
   ["v"]=>
-  object(stdClass)#242 (1) {
+  object(stdClass)#254 (1) {
     ["key"]=>
     array(2) {
       [0]=>
-      object(stdClass)#147 (1) {
+      object(stdClass)#198 (1) {
         ["key"]=>
         string(7) "correct"
       }
@@ -335,7 +425,7 @@ Evaluator : date("Y-m-d H:i:s")
 Data      : array(0) {
 }
 
-Result    : string(19) "2019-04-06 16:01:13"
+Result    : string(19) "2019-12-16 12:26:53"
 
 ==========================================
 Expression: time()
@@ -344,7 +434,7 @@ Evaluator : time()
 Data      : array(0) {
 }
 
-Result    : int(1554559273)
+Result    : int(1576495613)
 
 ==========================================
 Expression: date("Y-m-d H:i:s", time())

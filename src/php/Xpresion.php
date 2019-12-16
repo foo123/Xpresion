@@ -3,7 +3,7 @@
 *
 *   Xpresion
 *   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node.js and Browser
-*   @version: 1.0.0
+*   @version: 1.0.1
 *
 *   https://github.com/foo123/Xpresion
 *
@@ -1445,8 +1445,22 @@ class XpresionOp extends XpresionTok
             $args[] = count($args[1]) ? $args[1][count($args[1])-1] : false;
             $args[] = count($args[2]) ? $args[2][0] : false;
             $args[] = $args[4] ? ($args[4]->pos+1===$args[0]) : false;
-            $args[] = $args[4] ? $args[4]->type : ($args[3] ? $args[3]->type : 0);
+            $deduced_type = 0; // T_DUM
+            $indt = count($args[1])-1; $indo = 0;
+            // try to inherit type from other tokens/ops if current type is T_DUM(0), eg for bracket operator
+            while (!$deduced_type)
+            {
+                if ($indt>=0 && $indo<count($args[2]) && $indo+1<count($args[2]) && ($args[2][$indo+1]->node instanceof XpresionFunc))
+                    $deduced_type = /*$args[1][$indt]->pos>$args[2][$indo]->pos ?*/ $args[1][$indt--]->type /*: $args[2][$indo++]->type*/;
+                elseif ($indo<count($args[2]))
+                    $deduced_type = $args[2][$indo++]->type;
+                elseif ($indt>=0)
+                    $deduced_type = $args[1][$indt--]->type;
+                else break;
+            }
+            $args[] = $deduced_type;
         }
+        
         // array('${POS}'=>0,'${TOKS}'=>1,'${OPS}'=>2,'${TOK}'=>3,'${OP}'=>4,'${PREV_IS_OP}'=>5,'${DEDUCED_TYPE}'=>6)
         $nargs = (object)array(
             'POS' => $args[0],
@@ -1456,6 +1470,7 @@ class XpresionOp extends XpresionTok
             'OP' => $args[4],
             'PREV_IS_OP' => $args[5],
             'DEDUCED_TYPE' => $args[6]
+            //'DEDUCED_TYPE_STR' => Xpresion::$TYPES[$deduced_type]
         );
 
         while ($i < $l)
@@ -1520,7 +1535,7 @@ class XpresionOp extends XpresionTok
         $otype = $this->otype;
         if (null===$args) $args = array();
         if ($this->revert) $args = array_reverse($args);
-        if ((Xpresion::T_DUM === $otype) && !empty($args)) $otype = $args[ 0 ]->type;
+        if (Xpresion::T_DUM === $otype && !empty($args)) $otype = $args[ 0 ]->type;
         elseif (!empty($args)) $args[0]->type = $otype;
         $n = new XpresionNode($otype, $this->arity, $this, $args, $pos);
         if (Xpresion::T_N_OP === $this->type && null !== $op_queue)
@@ -1768,7 +1783,7 @@ class XpresionConfiguration
 
 class Xpresion
 {
-    const VERSION = "1.0.0";
+    const VERSION = "1.0.1";
 
     const COMMA       =   ',';
     const LPAREN      =   '(';
@@ -1800,6 +1815,26 @@ class Xpresion
     const T_FUN       =   131;
     const T_EMPTY     =   1024;
 
+    public static $TYPES = array(
+        0 => 'T_DUM',
+        1 => 'T_MIX',
+        //1 => 'T_DFT',
+        16 => 'T_IDE',
+        17 => 'T_VAR',
+        32 => 'T_LIT',
+        33 => 'T_NUM',
+        34 => 'T_STR',
+        35 => 'T_REX',
+        36 => 'T_BOL',
+        37 => 'T_DTM',
+        38 => 'T_ARY',
+        128 => 'T_OP',
+        129 => 'T_N_OP',
+        130 => 'T_POLY_OP',
+        131 => 'T_FUN',
+        1024 => 'T_EMPTY'
+    );
+    
     public static $_inited = false;
 
     public static $EMPTY_TOKEN = null;
@@ -2561,7 +2596,7 @@ class Xpresion
                         ,'otype'        => Xpresion::T_DFT
                         ,'fixity'       => Xpresion::INFIX
                         ,'associativity'=> Xpresion::LEFT
-                        ,'priority'     => 3
+                        ,'priority'     => 103 // comma operator needs to have very low priority because it can break other expressions which are between commas
                     )
        // n-ary (ternary) if-then-else operator
         ,'?'    =>  array(

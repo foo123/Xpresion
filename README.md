@@ -581,7 +581,7 @@ Xpresion.defaultConfiguration(Configuration({
                 ,'otype'        : T_DFT
                 ,'fixity'       : INFIX
                 ,'associativity': LEFT
-                ,'priority'     : 3
+                ,'priority'     : 103
             }
 // n-ary (ternary) if-then-else operator
 ,'?'    :   {

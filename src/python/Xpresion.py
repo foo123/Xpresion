@@ -3,7 +3,7 @@
 #
 #   Xpresion
 #   Simple eXpression parser engine with variables and custom functions support for PHP, Python, Node.js and Browser
-#   @version: 1.0.0
+#   @version: 1.0.1
 #
 #   https://github.com/foo123/Xpresion
 #
@@ -923,9 +923,9 @@ def php_date( format, timestamp=None ):
     D['W'] = str( W )
 
     # Month --
-    D['F'] = locale['month'][ n ]
+    D['F'] = locale['month'][ n-1 ]
     D['m'] = str( n ).zfill(2)
-    D['M'] = locale['month_short'][ n ]
+    D['M'] = locale['month_short'][ n-1 ]
     D['n'] = str( n )
     D['t'] = str( calendar.monthrange(Y, n)[1] )
 
@@ -1340,8 +1340,25 @@ class Op(Tok):
             args.append(args[1][-1] if len(args[1]) else False)
             args.append(args[2][0] if len(args[2]) else False)
             args.append((args[4].pos+1==args[0]) if args[4] else False)
-            args.append(args[4].type if args[4] else (args[3].type if args[3] else 0))
-            #args.append(Xpresion)
+            
+            deduced_type = 0 # T_DUM
+            indt = len(args[1])-1
+            indo = 0
+            # try to inherit type from other tokens/ops if current type is T_DUM(0), eg for bracket operator
+            while not deduced_type:
+                if indt>=0 and indo<len(args[2]) and indo+1<len(args[2]) and isinstance(args[2][indo+1].node, Xpresion.Func):
+                    deduced_type = args[1][indt].type
+                    #args[1][indt].pos>args[2][indo].pos ? args[1][indt--].type : args[2][indo++].type
+                    indt -= 1
+                elif indo<len(args[2]):
+                    deduced_type = args[2][indo].type
+                    indo += 1
+                elif indt>=0:
+                    deduced_type = args[1][indt].type
+                    indt -= 1
+                else: break
+            
+            args.append(deduced_type)
 
         # {'${POS}':0,'${TOKS}':1,'${OPS}':2,'${TOK}':3,'${OP}':4,'${PREV_IS_OP}':5,'${DEDUCED_TYPE}':6,'Xpresion':7}
         #nargs = {
@@ -1574,7 +1591,7 @@ class Xpresion:
     https://github.com/foo123/Xpresion
     """
 
-    VERSION = "1.0.0"
+    VERSION = "1.0.1"
 
     COMMA       = COMMA
     LPAREN      = LPAREN
@@ -1606,6 +1623,26 @@ class Xpresion:
     T_FUN       = T_FUN
     T_EMPTY     = T_EMPTY
 
+    TYPES = {
+        '0' : 'T_DUM',
+        '1' : 'T_MIX',
+        #'1' => 'T_DFT',
+        '16' : 'T_IDE',
+        '17' : 'T_VAR',
+        '32' : 'T_LIT',
+        '33' : 'T_NUM',
+        '34' : 'T_STR',
+        '35' : 'T_REX',
+        '36' : 'T_BOL',
+        '37' : 'T_DTM',
+        '38' : 'T_ARY',
+        '128' : 'T_OP',
+        '129' : 'T_N_OP',
+        '130' : 'T_POLY_OP',
+        '131' : 'T_FUN',
+        '1024' : 'T_EMPTY'
+    }
+    
     EMPTY_TOKEN = Tok(T_EMPTY, '', '')
     CONF = None
 
@@ -2242,7 +2279,7 @@ class Xpresion:
                         ,'otype'        : T_DFT
                         ,'fixity'       : INFIX
                         ,'associativity': LEFT
-                        ,'priority'     : 3
+                        ,'priority'     : 103 # comma operator needs to have very low priority because it can break other expressions which are between commas
                     }
         # n-ary (ternary) if-then-else operator
         ,'?'    :   {

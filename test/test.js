@@ -23,6 +23,13 @@ function test_expr(expr, evaluate)
 
 echo( 'Xpresion.VERSION ' + Xpresion.VERSION + "\n" );
 
+test_expr('(123+456)', true);
+test_expr('("123"+456)', true);
+test_expr('("123"+"456")', true);
+test_expr('len("123"+456)', true);
+test_expr('len("123"+"456")', true);
+test_expr('sum(1,2+3,4)', true);
+test_expr('sum(1,(2+3),4)', true);
 test_expr('array("string")',true);
 test_expr('array(["ar","ra","y"])',true);
 test_expr('str(2)',true);
@@ -37,6 +44,9 @@ test_expr('-3');
 test_expr('("1,2,3")+3',true);
 test_expr('"1,2,3"+3',true);
 test_expr('"1,2,3"+3+4',true);
+test_expr('"1,2,3"+3+len("123")',true);
+test_expr('"1,2,3"+3+sum(1,2,3)',true);
+test_expr('sum(1,len("123"+456),2)',true);
 test_expr('[1,2,3]+3',true);
 test_expr('-3+2',true);
 test_expr('1-3+2',true);
