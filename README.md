@@ -9,7 +9,7 @@ A simple, fast and flexible **eXpression Parser Engine** (with custom functions 
 **light-weight (~29kB minified, ~10kB zipped)**
 
 
-**version 1.0.0** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
+**version 1.0.1** [Xpresion.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.js), [Xpresion.min.js](https://raw.githubusercontent.com/foo123/Xpresion/master/src/js/Xpresion.min.js)
 
 
 
